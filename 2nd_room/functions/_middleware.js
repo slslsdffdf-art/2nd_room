@@ -1,25 +1,25 @@
+// /play 및 일부 API는 게이트 쿠키(auth2=ok) 필요
 export async function onRequest({ request, next }) {
   try {
-    const { pathname } = new URL(request.url);
+    const url = new URL(request.url);
+    const { pathname, searchParams } = url;
 
-    // API 중 게이트/초기화/조회는 누구나 접근 (login, choose?init=1, lines GET)
+    // 게이트/초기화/방명록 조회는 통과
     if (
-      pathname.startsWith('/api/login') ||
-      (pathname.startsWith('/api/choose') && request.method === 'GET') ||
-      (pathname.startsWith('/api/lines') && request.method === 'GET')
+      pathname.startsWith("/api/login") ||
+      (pathname.startsWith("/api/choose") && searchParams.get("init") === "1") ||
+      (pathname.startsWith("/api/lines") && request.method === "GET")
     ) {
-      return await next();
+      return next();
     }
 
-    // 그 외 /play, POST choose/lastwords 등은 세션 필요
-    const authed = /(?:^|;\s*)auth2=ok(?:;|$)/.test(request.headers.get('Cookie')||'');
-    if (!authed) {
-      return new Response('Unauthorized', { status: 401 });
-    }
+    // /play 화면, /api/choose POST, /api/lastwords 등은 세션 필요
+    const cookie = request.headers.get("Cookie") || "";
+    const authed = /(?:^|;\s*)auth2=ok(?:;|$)/.test(cookie);
+    if (!authed) return new Response("Unauthorized", { status: 401 });
 
-    return await next();
+    return next();
   } catch (e) {
-    console.error('middleware error:', e && e.stack || e);
-    return new Response('Internal Error (middleware)', { status: 500 });
+    return new Response("Internal Error (middleware)", { status: 500 });
   }
 }
