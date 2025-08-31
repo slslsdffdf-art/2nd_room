@@ -1,75 +1,134 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <title>두 번째 방 – 플레이</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body{margin:0;min-height:100dvh;display:grid;place-items:center;
-      background:url("/images/parchment-bg.jpg") center/cover no-repeat fixed;
-      font-family:"Noto Serif KR",serif}
-    .card{background:rgba(255,255,255,.82);padding:24px 20px;border-radius:12px;max-width:760px;width:92vw}
-    h1{margin:0 0 10px}
-    .row{display:flex;gap:10px;margin-top:12px}
-    button{flex:1;padding:14px;font-size:18px;cursor:pointer}
-    #desc{white-space:pre-line}
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>두 번째 방 – 플레이</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --ink:#2b1b0e; --veil:rgba(255,255,255,.84); --rule:#b89a6a; --accent:#6b3b20 }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100dvh; display:grid; place-items:center;
+    font-family:'Noto Serif KR',serif; color:var(--ink);
+    background:url("/images/parchment-bg.jpg") center/cover fixed no-repeat;
+  }
+  .card{
+    width:min(780px,92vw); background:var(--veil); border-radius:14px; padding:22px 18px;
+    box-shadow:0 18px 40px rgba(0,0,0,.25); transform:translateY(6px); animation:rise .5s ease forwards
+  }
+  @keyframes rise{to{transform:translateY(0)}}
+  h1{margin:0 0 6px}
+  #desc{white-space:pre-line; margin:0 0 12px}
+  .row{display:flex; gap:10px}
+  .btn{
+    flex:1; padding:14px 16px; font-size:18px; cursor:pointer; border:1px solid var(--rule);
+    background:#fffdf6; border-radius:10px; transition:transform .06s ease, box-shadow .2s ease
+  }
+  .btn:active{transform:translateY(1px)}
+  .fade{animation:fade .4s ease}
+  @keyframes fade{from{opacity:0} to{opacity:1}}
+
+  /* 모달 */
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center}
+  .modal{width:min(640px,92vw); background:#121212; color:#eee; border:1px solid #2f2f2f; border-radius:12px; padding:16px}
+  .modal h3{margin:0 0 6px; letter-spacing:.02em}
+  .modal p{margin:0 0 10px; opacity:.9}
+  textarea{width:100%; min-height:110px; resize:vertical; padding:10px; font-size:15px; border-radius:8px; border:1px solid #343434; background:#0e0e0e; color:#eee}
+  .actions{display:flex; gap:8px; justify-content:flex-end}
+  .pill{padding:10px 14px; border-radius:10px; border:1px solid #333; background:#1a1a1a; color:#eee; cursor:pointer}
+  .pill.primary{background:#2b1b0e; border-color:#5a402b}
+  .err{color:#f5a5a5; min-height:20px}
+</style>
 </head>
 <body>
-  <div class="card">
+  <div class="card fade">
     <h1>끝없는 복도</h1>
     <p id="desc">세션을 준비하는 중…</p>
     <div class="row">
-      <button data-dir="L">왼쪽</button>
-      <button data-dir="F">정면</button>
-      <button data-dir="R">오른쪽</button>
+      <button class="btn" data-dir="L">왼쪽</button>
+      <button class="btn" data-dir="F">정면</button>
+      <button class="btn" data-dir="R">오른쪽</button>
     </div>
   </div>
 
-  <script>
-    const desc = document.getElementById('desc');
+  <!-- 유언 모달 -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h3>너는 실패했다.</h3>
+      <p>단 한 줄을 남겨라. (최대 140자)</p>
+      <textarea id="lw" placeholder="유언 (선택)"></textarea>
+      <div class="err" id="derr"></div>
+      <div class="actions">
+        <button class="pill" id="skip">말 없이 떠난다</button>
+        <button class="pill primary" id="submitLW">유언 제출</button>
+      </div>
+    </div>
+  </div>
 
-    async function init() {
-      const r = await fetch('/api/choose?init=1');
-      if (r.status === 401) return location.href='/?err=session';
-      const j = await r.json().catch(()=>({step:0}));
-      desc.textContent = `현재 단계: ${j.step}\n방향을 고르세요.`;
-    }
+<script>
+const desc = document.getElementById('desc');
+const ov = document.getElementById('overlay');
+const derr = document.getElementById('derr');
+const t = (s)=> (s||'').toString().replace(/\s{3,}/g,' ').trim();
 
-    async function pick(dir){
-      const r = await fetch('/api/choose', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ dir })
-      });
-      if (r.status === 401) return location.href='/?err=session';
-      const j = await r.json().catch(()=>({}));
+async function init() {
+  const r = await fetch('/api/choose?init=1');
+  if (r.status === 401) return location.href='/?err=session';
+  const j = await r.json().catch(()=>({step:0}));
+  desc.textContent = `현재 단계: ${j.step}\n방향을 고르세요.`;
+}
+init();
 
-      if (j.result === 'advance') {
-        desc.textContent = `성공! 현재 단계: ${j.step}\n계속 진행하세요.`;
-      } else if (j.result === 'dead') {
-        desc.textContent = '사망했습니다. 유언을 남길 수 있습니다.';
-        document.querySelectorAll('button').forEach(b=>b.disabled=true);
-        const msg = prompt('마지막 한마디(선택):');
-        if (msg && msg.trim()){
-          await fetch('/api/lastwords', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ text: msg.trim() })
-          }).catch(()=>{});
-        }
-        alert('고생하셨습니다.');
-        location.href='/play/'; // 임시로 같은 페이지 유지
-      } else {
-        alert(j.error || '오류');
-      }
-    }
+async function pick(dir){
+  const r = await fetch('/api/choose', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ dir })
+  });
+  if (r.status === 401) return location.href='/?err=session';
+  const j = await r.json().catch(()=>({}));
 
-    document.querySelectorAll('button').forEach(b=>{
-      b.addEventListener('click', ()=>pick(b.dataset.dir));
-    });
+  if (j.result === 'advance') {
+    desc.textContent = `성공! 현재 단계: ${j.step}\n계속 진행하세요.`;
+    pulse();
+  } else if (j.result === 'dead') {
+    document.querySelectorAll('.btn').forEach(b=>b.disabled=true);
+    showModal();
+  } else {
+    alert(j.error || '오류');
+  }
+}
 
-    init();
-  </script>
+function pulse(){
+  desc.classList.remove('fade'); void desc.offsetWidth; desc.classList.add('fade');
+}
+
+function showModal(){ ov.style.display='flex'; }
+function hideModal(){ ov.style.display='none'; }
+
+document.querySelectorAll('.btn').forEach(b=>{
+  b.addEventListener('click', ()=>pick(b.dataset.dir));
+});
+
+document.getElementById('skip').addEventListener('click', ()=> submitLW(true));
+document.getElementById('submitLW').addEventListener('click', ()=> submitLW(false));
+
+async function submitLW(skip){
+  derr.textContent='';
+  const text = skip ? '' : t(document.getElementById('lw').value).slice(0,140);
+  const r = await fetch('/api/lastwords', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ text })
+  });
+  if (r.ok) {
+    // 방명록으로 이동
+    location.href = '/log/?new=1';
+  } else {
+    const j = await r.json().catch(()=>({}));
+    derr.textContent = j.error || '유언 저장 실패';
+  }
+}
+</script>
 </body>
 </html>
