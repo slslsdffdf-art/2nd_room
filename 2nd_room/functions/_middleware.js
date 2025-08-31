@@ -1,24 +1,36 @@
-// functions/_middleware.js
 export async function onRequest(context) {
-  const url = new URL(context.request.url);
-  const path = url.pathname;
+  const req = context.request;
+  const url = new URL(req.url);
+  const p = url.pathname;
+  const cookie = req.headers.get("Cookie") || "";
+  const hasOK   = /(^|;\s*)auth2=ok(;|$)/.test(cookie);
+  const hasWall = /(^|;\s*)auth2=wall(;|$)/.test(cookie);
+  const isAdmin = /(^|;\s*)admin=1(;|$)/.test(cookie);
 
-  const cookie = context.request.headers.get("Cookie") || "";
-  const hasOK = /(?:^|;\s*)auth2=ok(?:;|$)/.test(cookie);
-  const hasWall = /(?:^|;\s*)auth2=wall(?:;|$)/.test(cookie);
+  // 공개/허용 경로
+  const allow =
+    p === "/" ||
+    p === "/lobby.html" ||
+    p.startsWith("/images/") ||
+    p.startsWith("/api/login") ||
+    p.startsWith("/api/queue") ||
+    p.startsWith("/api/lines") ||
+    p.startsWith("/api/admin-login") ||
+    p.startsWith("/api/admin-logout") ||
+    p.startsWith("/play/wall");
 
-  // 방명록은 누구나(게이트 통과자 + 사망자) 접근 허용
-  if (path.startsWith("/play/wall")) return await context.next();
+  if (allow) return context.next();
 
-  // /play/ 메인 UI는 "auth2=ok" 이면서 "wall"이 아닌 경우에만 허용
-  if (path.startsWith("/play/")) {
-    if (!hasOK || hasWall) {
-      return new Response("", {
-        status: 302,
-        headers: { Location: "/play/wall" },
-      });
+  // /play/* 접근 제어
+  if (p.startsWith("/play/")) {
+    if (isAdmin) return context.next();
+    if (hasWall) {
+      return new Response(null, { status: 302, headers: { Location: "/play/wall" } });
+    }
+    if (!hasOK) {
+      return new Response(null, { status: 302, headers: { Location: "/lobby.html" } });
     }
   }
-  // 그 외는 그대로 통과
-  return await context.next();
+
+  return context.next();
 }
