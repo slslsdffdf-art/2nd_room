@@ -1,38 +1,24 @@
-// /play/* 과 대부분의 /api/* 보호.
-// 죽은(락) 사용자는 /play/wall.html 로만 접근 가능.
+// functions/_middleware.js
+export async function onRequest(context) {
+  const url = new URL(context.request.url);
+  const path = url.pathname;
 
-function getCookie(req, name){
-  const c = req.headers.get('Cookie') || '';
-  const m = c.match(new RegExp('(?:^|;\\s*)'+name+'=([^;]+)'));
-  return m ? decodeURIComponent(m[1]) : '';
-}
+  const cookie = context.request.headers.get("Cookie") || "";
+  const hasOK = /(?:^|;\s*)auth2=ok(?:;|$)/.test(cookie);
+  const hasWall = /(?:^|;\s*)auth2=wall(?:;|$)/.test(cookie);
 
-export async function onRequest(context){
-  const { request, next } = context;
-  const url = new URL(request.url);
-  const p = url.pathname;
+  // 방명록은 누구나(게이트 통과자 + 사망자) 접근 허용
+  if (path.startsWith("/play/wall")) return await context.next();
 
-  // 공개 허용(게이트/배경/폰트/방명록 페이지 & API)
-  const allow =
-    p === '/' ||
-    p === '/play/wall.html' ||
-    p.startsWith('/images/') ||
-    p === '/favicon.ico' ||
-    p.startsWith('/api/lines') ||
-    p.startsWith('/api/login');
-
-  if (allow) return next();
-
-  const auth = getCookie(request, 'auth2'); // 'ok' | 'wall' | ''
-  if (!auth) {
-    return Response.redirect(`${url.origin}/`, 302);
+  // /play/ 메인 UI는 "auth2=ok" 이면서 "wall"이 아닌 경우에만 허용
+  if (path.startsWith("/play/")) {
+    if (!hasOK || hasWall) {
+      return new Response("", {
+        status: 302,
+        headers: { Location: "/play/wall" },
+      });
+    }
   }
-
-  // 락 유저는 어디로 가든 방명록만
-  if (auth === 'wall') {
-    return Response.redirect(`${url.origin}/play/wall.html`, 302);
-  }
-
-  // auth === 'ok' → 통과
-  return next();
+  // 그 외는 그대로 통과
+  return await context.next();
 }
