@@ -1,53 +1,53 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <title>두 번째 방 – 게이트</title>
+  <meta charset="UTF-8" />
+  <title>두 번째 방 – 입장</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
   <style>
-    body {
-      background: url("/images/parchment-bg.jpg") center/cover no-repeat;
-      font-family: 'Noto Serif KR', serif;
-      text-align: center;
-      padding-top: 100px;
+    :root{--ink:#2b1b0e;}
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100dvh; display:grid; place-items:center;
+      background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;
+      font-family:'Noto Serif KR',serif; color:var(--ink);
     }
-    input, button {
-      font-size: 18px;
-      padding: 10px;
-      margin: 5px;
-    }
+    .card{background:rgba(255,255,255,.82); padding:28px 22px; border-radius:12px; width:min(680px,92vw)}
+    h1{margin:0 0 6px}
+    p{margin:0 0 16px}
+    input{width:100%; padding:12px; font-size:18px}
+    button{padding:12px 18px; font-size:16px; cursor:pointer; margin-top:10px}
+    #msg{margin-top:10px; color:#7b2a2a}
   </style>
 </head>
 <body>
-  <h1>두 번째 방으로 들어가기</h1>
-  <p>첫 번째 방의 탈출자만이 이 문을 통과할 수 있습니다.</p>
-
-  <form id="gateForm">
-    <input type="password" name="password" id="password" placeholder="암호 입력" required>
-    <button type="submit">입장</button>
-  </form>
-
-  <p id="msg"></p>
+  <div class="card">
+    <h1>두 번째 방</h1>
+    <p>첫 번째 방 탈출자가 알고 있는 입장 코드를 입력하세요.</p>
+    <form id="f" onsubmit="return false">
+      <input id="code" placeholder="입장 코드" autocomplete="off" />
+      <button id="go">입장</button>
+      <div id="msg"></div>
+    </form>
+  </div>
 
   <script>
-    document.getElementById("gateForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const password = document.getElementById("password").value.trim();
-
-      const res = await fetch("/api/login", {
-        method: "POST",
-        body: new URLSearchParams({ password })
+    const msg = document.getElementById('msg');
+    document.getElementById('go').addEventListener('click', async ()=>{
+      msg.textContent = '';
+      const code = document.getElementById('code').value.trim();
+      if(!code){ msg.textContent='코드를 입력하세요.'; return; }
+      const r = await fetch('/api/login', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ code })
       });
-
-      if (res.redirected) {
-        window.location.href = res.url;
-        return;
+      if(r.ok){ location.href='/play/'; }
+      else {
+        const j = await r.json().catch(()=>({}));
+        msg.textContent = j.error || '입장 실패';
       }
-
-      const data = await res.json().catch(() => ({}));
-      document.getElementById("msg").innerText =
-        data.error === "invalid_code"
-          ? "암호가 틀렸습니다."
-          : "오류 발생";
     });
   </script>
 </body>
