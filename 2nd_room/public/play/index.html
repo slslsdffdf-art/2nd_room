@@ -26,6 +26,14 @@
     .status{ font-size:13px; color:#795548; margin-left:8px }
     .sep{ height:1px; background:var(--rule); opacity:.5; margin:16px 0 }
   </style>
+  <script>
+    // 새로고침/재접속 방지: 사망자 쿠키 있으면 곧장 방명록으로
+    (function(){
+      if (document.cookie.includes('auth2=wall')) {
+        location.replace('/play/wall');
+      }
+    })();
+  </script>
 </head>
 <body>
   <div class="wrap">
@@ -40,7 +48,7 @@
       <button class="btn" id="btnR">오른쪽</button>
     </div>
 
-    <!-- 생존 전진 -->
+    <!-- 통과 화면 -->
     <div id="aliveBox" class="hidden center">
       <p>문이 열렸습니다. 더 깊은 방으로 전진합니다…</p>
       <div class="sep"></div>
@@ -54,100 +62,160 @@
       <textarea id="lastText" maxlength="300" placeholder="유언을 남기시겠습니까? (최대 300자)"></textarea>
       <div style="margin-top:8px;">
         <button class="btn" id="saveLWBtn">유언 저장</button>
-        <button class="btn hidden" id="toWallBtn">방명록 보러가기</button>
+        <button class="btn hidden" id="toLogBtn">방명록 보러가기</button>
         <span id="saveStatus" class="status"></span>
       </div>
     </div>
   </div>
 
   <script>
-    // -------- 공통 --------
     const $ = (s)=>document.querySelector(s);
-    const btnL=$('#btnL'), btnF=$('#btnF'), btnR=$('#btnR');
-    const chooseBox=$('#chooseBox'), aliveBox=$('#aliveBox'), deathBox=$('#deathBox');
-    const causeEl=$('#cause'), stepInfo=$('#stepInfo'), timerEl=$('#timer');
-    const saveBtn=$('#saveLWBtn'), toWallBtn=$('#toWallBtn'), saveStatus=$('#saveStatus'), lastText=$('#lastText');
+    const btnL = $('#btnL'), btnF = $('#btnF'), btnR = $('#btnR');
+    const chooseBox = $('#chooseBox');
+    const aliveBox  = $('#aliveBox');
+    const deathBox  = $('#deathBox');
+    const causeEl   = $('#cause');
+    const stepInfo  = $('#stepInfo');
+    const timerEl   = $('#timer');
+    const saveBtn   = $('#saveLWBtn');
+    const toLogBtn  = $('#toLogBtn');
+    const saveStatus= $('#saveStatus');
+    const lastText  = $('#lastText');
 
-    // -------- 타이머 --------
-    let remain=0, tick=null;
-    function setTimer(sec){
-      remain=sec; timerEl.textContent=remain;
+    let remain = 0, tick = null, dead = false;
+
+    function setTimer(s){
+      remain = s;
+      timerEl.textContent = remain;
       clearInterval(tick);
-      tick=setInterval(()=>{
-        remain--; timerEl.textContent=remain;
-        if(remain<=0){ clearInterval(tick); showDeath('시간 초과'); }
+      tick = setInterval(()=>{
+        remain--;
+        timerEl.textContent = remain;
+        if(remain<=0){
+          clearInterval(tick);
+          showDeath('시간 초과');
+        }
       },1000);
     }
 
-    // -------- 세션 초기화 --------
+    function disableChoice(disabled){
+      [btnL,btnF,btnR].forEach(b=>b.disabled=disabled);
+    }
+
     async function init(){
-      const r=await fetch('/api/choose?init=1');
-      if(!r.ok){ alert('세션이 만료되었습니다. 입장 화면으로 돌아가세요.'); location.href='/'; return; }
-      const d=await r.json();
-      stepInfo.textContent='방 '+(d.step||0);
+      const r = await fetch('/api/choose?init=1');
+      if(!r.ok){ alert('세션이 만료되었습니다. 입장 화면으로 돌아갑니다.'); location.href='/'; return; }
+      const d = await r.json().catch(()=>({}));
+      stepInfo.textContent = '방 ' + (d.step||0);
       setTimer(90);
     }
 
-    // -------- 선택 처리 --------
-    function disableChoice(flag){ [btnL,btnF,btnR].forEach(b=>b.disabled=flag); }
-
     async function choose(dir){
+      if (dead) return;
       disableChoice(true);
       try{
-        const r=await fetch('/api/choose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dir})});
-        const d=await r.json().catch(()=>({}));
+        const r = await fetch('/api/choose', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ dir })
+        });
+        const d = await r.json().catch(()=>({}));
         if(!r.ok){ alert(d.error||'오류'); disableChoice(false); return; }
 
-        if(d.result==='advance'){
+        if(d.result === 'advance'){
           clearInterval(tick);
-          stepInfo.textContent='방 '+d.step;
+          stepInfo.textContent = '방 ' + d.step;
           chooseBox.classList.add('hidden');
           aliveBox.classList.remove('hidden');
-        }else if(d.result==='dead'){
+        }else if(d.result === 'dead'){
           clearInterval(tick);
-          showDeath(d.cause||'알 수 없음');
+          showDeath(d.cause || '알 수 없음');
         }else{
-          alert('알 수 없는 응답'); disableChoice(false);
+          alert('알 수 없는 응답');
+          disableChoice(false);
         }
       }catch(e){
-        alert('네트워크 오류'); disableChoice(false);
+        alert('네트워크 오류');
+        disableChoice(false);
       }
     }
 
     function showDeath(cause){
-      causeEl.textContent=cause;
+      dead = true;
+      causeEl.textContent = cause;
       chooseBox.classList.add('hidden');
       aliveBox.classList.add('hidden');
       deathBox.classList.remove('hidden');
+
+      // 쿠키가 wall로 바뀔 시간을 조금 줌
+      saveBtn.disabled = true;
+      saveStatus.textContent = '세션 준비중…';
+      setTimeout(()=>{ 
+        if (document.cookie.includes('auth2=wall')) {
+          saveBtn.disabled = false;
+          saveStatus.textContent = '';
+        } else {
+          // 주기적 재확인 (최대 3초)
+          let tries = 0;
+          const iv = setInterval(()=>{
+            tries++;
+            if (document.cookie.includes('auth2=wall')) {
+              clearInterval(iv);
+              saveBtn.disabled = false;
+              saveStatus.textContent = '';
+            } else if (tries>=6) {
+              clearInterval(iv);
+              saveStatus.textContent = '세션 준비 실패. 잠시 후 다시 시도';
+            }
+          },500);
+        }
+      }, 200);
     }
 
-    $('#btnNext').onclick=()=>{
+    $('#btnNext').addEventListener('click', ()=>{
       aliveBox.classList.add('hidden');
       chooseBox.classList.remove('hidden');
       disableChoice(false);
       setTimer(90);
-    };
-    btnL.onclick=()=>choose('L'); btnF.onclick=()=>choose('F'); btnR.onclick=()=>choose('R');
+    });
 
-    // -------- 유언 저장 (성공 시에만 버튼 노출) --------
-    async function saveLastWords(){
-      saveBtn.disabled=true; saveStatus.textContent='저장중…';
+    btnL.onclick = ()=>choose('L');
+    btnF.onclick = ()=>choose('F');
+    btnR.onclick = ()=>choose('R');
+
+    async function submitLastWords(){
+      if (!document.cookie.includes('auth2=wall')) {
+        saveStatus.textContent = '세션 준비중… 잠시 후 다시 시도';
+        return;
+      }
+      const text = lastText.value.trim();
+      saveBtn.disabled = true;
+      saveStatus.textContent = '저장중…';
       try{
-        const r=await fetch('/api/lastwords',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:lastText.value.trim()})});
-        const d=await r.json().catch(()=>({}));
-        if(r.ok && d.ok){
-          saveStatus.textContent='저장 완료';
-          lastText.disabled=true; saveBtn.disabled=true;
-          toWallBtn.classList.remove('hidden');   // ← 저장 성공 후에만
-        }else{
-          saveStatus.textContent=d.error||'저장 실패'; saveBtn.disabled=false;
+        const r = await fetch('/api/lastwords', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ text })
+        });
+        const d = await r.json().catch(()=>({}));
+        if (r.ok && d.ok) {
+          // already여도 성공 처리
+          saveStatus.textContent = d.already ? '이미 저장된 유언입니다' : '저장 완료';
+          lastText.disabled = true;
+          saveBtn.disabled = true;
+          toLogBtn.classList.remove('hidden');
+        } else {
+          saveStatus.textContent = d.error || '저장 실패';
+          saveBtn.disabled = false;
         }
-      }catch(e){ saveStatus.textContent='네트워크 오류'; saveBtn.disabled=false; }
+      }catch(e){
+        saveStatus.textContent = '네트워크 오류';
+        saveBtn.disabled = false;
+      }
     }
-    saveBtn.onclick=saveLastWords;
-    toWallBtn.onclick=()=>location.href='/play/wall.html';
 
-    // 시작
+    saveBtn.addEventListener('click', submitLastWords);
+    toLogBtn.addEventListener('click', ()=>{ location.href = '/play/wall'; });
+
     init();
   </script>
 </body>
