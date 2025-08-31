@@ -1,44 +1,40 @@
-// functions/api/login.js
-const json = (x, s = 200, extra) =>
-  new Response(JSON.stringify(x), {
-    status: s,
-    headers: { "Content-Type": "application/json", ...(extra || {}) },
-  });
+const json = (x,s=200,h={})=>new Response(JSON.stringify(x),{status:s,headers:{'Content-Type':'application/json',...h}});
 
-function setCookie(headers, name, value, opts = {}) {
-  const p = [
-    `${name}=${encodeURIComponent(value)}`,
-    "Path=/",
-    "SameSite=Lax",
-    "Secure",
-    opts.httpOnly ? "HttpOnly" : "",
-    opts.maxAge ? `Max-Age=${opts.maxAge}` : "",
-  ]
-    .filter(Boolean)
-    .join("; ");
-  headers.append("Set-Cookie", p);
+function setCookie(H,name,value,opts={}){
+  const p=[`${name}=${encodeURIComponent(value)}`,'Path=/','SameSite=Lax','Secure',
+    opts.httpOnly?'HttpOnly':'',opts.maxAge?`Max-Age=${opts.maxAge}`:''].filter(Boolean).join('; ');
+  H.append('Set-Cookie', p);
+}
+function randTicket(n=16){
+  const a=new Uint8Array(n); crypto.getRandomValues(a);
+  return [...a].map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-export async function onRequest({ request, env }) {
-  if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405);
+export async function onRequest({ request, env }){
+  if (request.method!=='POST') return json({error:'Method Not Allowed'},405);
+  const { PASSWORD='', LINES } = env;
+  const body = await request.json().catch(()=>({}));
+  const code = String(body.code||'').trim();
+  const ck = request.headers.get('Cookie')||'';
 
-  const { PASSWORD = "" } = env;
-  const body = await request.json().catch(() => ({}));
-  const code = String(body.code || "");
+  if (/(^|;\s*)auth2=wall(;|$)/.test(ck)) return json({ ok:true, wall:true });
 
-  // 이미 사망 쿠키 보유자 → 방명록만 허용
-  const ck = request.headers.get("Cookie") || "";
-  if (/(^|;\s*)auth2=wall(;|$)/.test(ck)) {
-    // 굳이 실패로 돌릴 필요 없이 ok로 응답(프런트가 이미 /play/wall로 보냄)
-    return json({ ok: true, wall: true });
+  if (!code || code !== PASSWORD) return json({ error:'bad_password' },401);
+
+  // 티켓 발급(기존 q2 유지)
+  const m = (ck.match(/(?:^|;\s*)q2=([^;]+)/)||[])[1];
+  const ticket = m ? decodeURIComponent(m) : randTicket();
+
+  // 큐 등록
+  const mapKey = `q:map:${ticket}`;
+  const has = await LINES.get(mapKey);
+  if (!has) {
+    await LINES.put(mapKey, JSON.stringify({ ticket, joined: Date.now() }), { expirationTtl: 60*60*6 });
+    const qRaw = await LINES.get('q:queue'); const q = qRaw?JSON.parse(qRaw):[];
+    if (!q.includes(ticket)) { q.push(ticket); await LINES.put('q:queue', JSON.stringify(q)); }
   }
 
-  if (!code || code !== PASSWORD) return json({ error: "bad_password" }, 401);
-
-  // 플레이 허용 쿠키(auth2=ok) 발급 + 이전 진행 쿠키(r2) 초기화
-  const h = new Headers();
-  setCookie(h, "auth2", "ok", { httpOnly: true, maxAge: 60 * 60 * 6 }); // 6시간
-  setCookie(h, "r2", "", { httpOnly: true, maxAge: 0 }); // 초기화
-
-  return json({ ok: true }, 200, Object.fromEntries(h.entries()));
+  const H = new Headers();
+  setCookie(H,'q2', ticket, { httpOnly:true, maxAge:60*60*6 });
+  return json({ ok:true, lobby:true }, 200, Object.fromEntries(H.entries()));
 }
