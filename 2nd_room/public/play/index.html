@@ -1,131 +1,154 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>끝없는 복도</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
-<style>
-  :root{--ink:#2b1b0e;--rule:#b89a6a;--bg:rgba(255,255,255,.78)}
-  *{box-sizing:border-box}
-  body{margin:0;background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;
-       font-family:'Noto Serif KR',serif;color:var(--ink)}
-  .wrap{max-width:920px;margin:0 auto;min-height:100vh;padding:32px}
-  .card{background:var(--bg);border:1px solid var(--rule);border-radius:14px;padding:22px 20px;
-        box-shadow:0 8px 30px rgba(0,0,0,.08)}
-  h1{margin:0 0 18px;font-size:28px;text-align:center}
-  .row{display:flex;gap:14px;justify-content:center;margin:18px 0 8px}
-  .btn{min-width:160px;padding:14px 16px;border:1px solid var(--rule);border-radius:10px;
-       background:#f2e4c9;cursor:pointer;font-weight:600}
-  .btn[disabled]{opacity:.6;cursor:not-allowed}
-  .hint{text-align:center;font-size:14px;opacity:.8}
-  .meta{margin-top:10px;text-align:center;opacity:.8}
-  /* modal */
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.58);display:none;align-items:center;justify-content:center}
-  .modal.show{display:flex}
-  .sheet{width:min(680px,92vw);background:#fff; border-radius:14px; padding:18px;border:1px solid var(--rule)}
-  .sheet h2{margin:0 0 8px}
-  textarea{width:100%;height:120px;padding:10px;border:1px solid var(--rule);border-radius:10px;resize:vertical}
-  .right{display:flex;gap:10px;justify-content:flex-end;margin-top:10px}
-  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#000;color:#fff;
-         padding:10px 14px;border-radius:8px;opacity:0;transition:opacity .2s}
-  .toast.show{opacity:1}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>끝없는 복도</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root{ --ink:#2b1b0e; --rule:#b89a6a; }
+    *{ box-sizing:border-box }
+    body{
+      margin:0; padding:40px;
+      font-family:'Noto Serif KR',serif; line-height:1.65; color:var(--ink);
+      background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;
+    }
+    .wrap{ max-width:720px; margin:0 auto; background:rgba(255,255,255,.76); border-radius:12px; padding:26px 22px; }
+    h1{ text-align:center; font-size:26px; margin:0 0 18px }
+    p{ margin:0 0 10px }
+    .btn{ display:inline-block; width:100%; padding:12px 14px; margin:8px 0; text-align:center;
+          border:1px solid var(--rule); background:#f7efe2; cursor:pointer; border-radius:8px; font-size:18px; }
+    .btn:disabled{ opacity:.5; cursor:not-allowed }
+    .note{ font-size:13px; color:#7a5c24; margin-top:8px }
+    .hidden{ display:none !important }
+    .center{ text-align:center }
+    textarea{ width:100%; min-height:120px; resize:vertical; padding:10px; }
+    .status{ font-size:13px; color:#795548; margin-left:8px }
+    .sep{ height:1px; background:var(--rule); opacity:.5; margin:16px 0 }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="card">
+  <div class="wrap">
     <h1>끝없는 복도</h1>
-    <div class="hint">운명의 갈림길. <b>왼쪽·정면·오른쪽</b> 중 하나를 선택하세요.</div>
-    <div class="row">
+    <p class="center" id="stepInfo">방 0</p>
+
+    <!-- 선택 화면 -->
+    <div id="chooseBox">
+      <p class="center">앞/왼/오 중 하나를 선택하세요. (남은 시간 <span id="timer">–</span>)</p>
       <button class="btn" id="btnL">왼쪽</button>
       <button class="btn" id="btnF">정면</button>
       <button class="btn" id="btnR">오른쪽</button>
     </div>
-    <div class="meta" id="status">시도 준비됨…</div>
-  </div>
-</div>
 
-<!-- Death modal -->
-<div class="modal" id="deathModal" aria-hidden="true">
-  <div class="sheet">
-    <h2>사망했습니다.</h2>
-    <p style="margin:6px 0 10px">마지막으로 남길 말을 적을 수 있습니다. (선택)</p>
-    <textarea id="lwText" placeholder="다음 도전자에게 전할 말(최대 160자)"></textarea>
-    <div class="right">
-      <button class="btn" id="skipLW">건너뛰기</button>
-      <button class="btn" id="sendLW">유언 남기기</button>
+    <!-- 생존 전진 -->
+    <div id="aliveBox" class="hidden center">
+      <p>문이 열렸습니다. 더 깊은 방으로 전진합니다…</p>
+      <div class="sep"></div>
+      <button class="btn" id="btnNext">다음 선택으로</button>
+    </div>
+
+    <!-- 사망 화면 -->
+    <div id="deathBox" class="hidden">
+      <p>사망 원인: <b><span id="cause"></span></b></p>
+      <p class="note">유언은 선택 사항입니다. 저장만 하고 이 화면에 머무릅니다.</p>
+      <textarea id="lastText" maxlength="300" placeholder="유언을 남기시겠습니까? (최대 300자)"></textarea>
+      <div style="margin-top:8px;">
+        <button class="btn" id="saveLWBtn">유언 저장</button>
+        <button class="btn hidden" id="toWallBtn">방명록 보러가기</button>
+        <span id="saveStatus" class="status"></span>
+      </div>
     </div>
   </div>
-</div>
 
-<div class="toast" id="toast"></div>
+  <script>
+    // -------- 공통 --------
+    const $ = (s)=>document.querySelector(s);
+    const btnL=$('#btnL'), btnF=$('#btnF'), btnR=$('#btnR');
+    const chooseBox=$('#chooseBox'), aliveBox=$('#aliveBox'), deathBox=$('#deathBox');
+    const causeEl=$('#cause'), stepInfo=$('#stepInfo'), timerEl=$('#timer');
+    const saveBtn=$('#saveLWBtn'), toWallBtn=$('#toWallBtn'), saveStatus=$('#saveStatus'), lastText=$('#lastText');
 
-<script>
-const $ = (s)=>document.querySelector(s);
-const statusEl = $('#status');
-const btns = [$('#btnL'), $('#btnF'), $('#btnR')];
-const deathModal = $('#deathModal');
-const lwText = $('#lwText');
-const toast = $('#toast');
-
-function showToast(msg){ toast.textContent=msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),1500); }
-function lockButtons(on){ btns.forEach(b=>b.disabled=on); }
-
-async function callChoose(dir){
-  lockButtons(true);
-  statusEl.textContent = '결과 판정 중…';
-  try{
-    const r = await fetch('/api/choose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dir})});
-    if(r.status===401){ location.href='/'; return; }
-    const data = await r.json();
-    if(!r.ok){ showToast(data.error||'오류'); lockButtons(false); return; }
-
-    if(data.result==='advance'){
-      statusEl.textContent = `생존! 다음 방으로 전진했습니다. (누적 단계 ${data.step})`;
-      lockButtons(false);
-    }else if(data.result==='dead'){
-      statusEl.textContent = `사망… (${data.cause})`;
-      // 모달 오픈
-      deathModal.classList.add('show');
-      deathModal.setAttribute('aria-hidden','false');
-      lwText.focus();
-    }else{
-      showToast('알 수 없는 응답');
-      lockButtons(false);
+    // -------- 타이머 --------
+    let remain=0, tick=null;
+    function setTimer(sec){
+      remain=sec; timerEl.textContent=remain;
+      clearInterval(tick);
+      tick=setInterval(()=>{
+        remain--; timerEl.textContent=remain;
+        if(remain<=0){ clearInterval(tick); showDeath('시간 초과'); }
+      },1000);
     }
-  }catch(e){
-    showToast('네트워크 오류');
-    lockButtons(false);
-  }
-}
 
-btns[0].addEventListener('click', ()=>callChoose('L'));
-btns[1].addEventListener('click', ()=>callChoose('F'));
-btns[2].addEventListener('click', ()=>callChoose('R'));
+    // -------- 세션 초기화 --------
+    async function init(){
+      const r=await fetch('/api/choose?init=1');
+      if(!r.ok){ alert('세션이 만료되었습니다. 입장 화면으로 돌아가세요.'); location.href='/'; return; }
+      const d=await r.json();
+      stepInfo.textContent='방 '+(d.step||0);
+      setTimer(90);
+    }
 
-// 유언 전송
-$('#sendLW').addEventListener('click', async ()=>{
-  const text = (lwText.value||'').trim();
-  try{
-    const r = await fetch('/api/lastwords',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
-    if(r.status===401){ location.href='/'; return; }
-    const data = await r.json();
-    if(!r.ok){ showToast(data.error||'전송 실패'); return; }
-    location.href = '/log/'; // 방명록으로
-  }catch(e){ showToast('네트워크 오류'); }
-});
+    // -------- 선택 처리 --------
+    function disableChoice(flag){ [btnL,btnF,btnR].forEach(b=>b.disabled=flag); }
 
-// 스킵 → 방명록
-$('#skipLW').addEventListener('click', ()=>{ location.href='/log/'; });
+    async function choose(dir){
+      disableChoice(true);
+      try{
+        const r=await fetch('/api/choose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dir})});
+        const d=await r.json().catch(()=>({}));
+        if(!r.ok){ alert(d.error||'오류'); disableChoice(false); return; }
 
-// 최초 진입 초기화
-(async()=>{
-  try{
-    const r = await fetch('/api/choose?init=1');
-    if(r.status===401){ location.href='/'; return; }
-  }catch{}
-})();
-</script>
+        if(d.result==='advance'){
+          clearInterval(tick);
+          stepInfo.textContent='방 '+d.step;
+          chooseBox.classList.add('hidden');
+          aliveBox.classList.remove('hidden');
+        }else if(d.result==='dead'){
+          clearInterval(tick);
+          showDeath(d.cause||'알 수 없음');
+        }else{
+          alert('알 수 없는 응답'); disableChoice(false);
+        }
+      }catch(e){
+        alert('네트워크 오류'); disableChoice(false);
+      }
+    }
+
+    function showDeath(cause){
+      causeEl.textContent=cause;
+      chooseBox.classList.add('hidden');
+      aliveBox.classList.add('hidden');
+      deathBox.classList.remove('hidden');
+    }
+
+    $('#btnNext').onclick=()=>{
+      aliveBox.classList.add('hidden');
+      chooseBox.classList.remove('hidden');
+      disableChoice(false);
+      setTimer(90);
+    };
+    btnL.onclick=()=>choose('L'); btnF.onclick=()=>choose('F'); btnR.onclick=()=>choose('R');
+
+    // -------- 유언 저장 (성공 시에만 버튼 노출) --------
+    async function saveLastWords(){
+      saveBtn.disabled=true; saveStatus.textContent='저장중…';
+      try{
+        const r=await fetch('/api/lastwords',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:lastText.value.trim()})});
+        const d=await r.json().catch(()=>({}));
+        if(r.ok && d.ok){
+          saveStatus.textContent='저장 완료';
+          lastText.disabled=true; saveBtn.disabled=true;
+          toWallBtn.classList.remove('hidden');   // ← 저장 성공 후에만
+        }else{
+          saveStatus.textContent=d.error||'저장 실패'; saveBtn.disabled=false;
+        }
+      }catch(e){ saveStatus.textContent='네트워크 오류'; saveBtn.disabled=false; }
+    }
+    saveBtn.onclick=saveLastWords;
+    toWallBtn.onclick=()=>location.href='/play/wall.html';
+
+    // 시작
+    init();
+  </script>
 </body>
 </html>
