@@ -1,38 +1,73 @@
-// KV는 나중에 진행도/번호/로그 저장용으로 확장
-export async function onRequestPost({ request, env }) {
-  // 간단 세션 확인(쿠키 존재만) — 실제로는 서명 검증 권장
-  const cookie = request.headers.get('Cookie')||'';
-  if(!/r2sess=/.test(cookie)){
-    return new Response(JSON.stringify({ error:'NO_SESSION' }), { status:401, headers:{'Content-Type':'application/json'}});
+// ----- cookie utils -----
+function getCookie(req, name) {
+  const c = req.headers.get('Cookie') || '';
+  const m = c.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'));
+  return m ? decodeURIComponent(m[1]) : '';
+}
+function setCookie(headers, name, value, opts = {}) {
+  const p = [
+    `${name}=${encodeURIComponent(value)}`,
+    'Path=/',
+    'SameSite=Lax',
+    'Secure',
+    opts.httpOnly ? 'HttpOnly' : '',
+    opts.maxAge ? `Max-Age=${opts.maxAge}` : ''
+  ].filter(Boolean).join('; ');
+  headers.append('Set-Cookie', p);
+}
+function json(x, s=200, extra){ 
+  const h = new Headers({ 'Content-Type':'application/json' });
+  if (extra) for (const [k,v] of Object.entries(extra)) h.set(k,v);
+  return new Response(JSON.stringify(x), { status:s, headers:h });
+}
+function parseState(str){ try{ return JSON.parse(atob(str)); }catch{ return null; } }
+function encState(obj){ return btoa(JSON.stringify(obj)); }
+
+// ----- handler -----
+export async function onRequest({ request }) {
+  const url = new URL(request.url);
+
+  // gate cookie
+  const authed = /(?:^|;\s*)auth2=ok(?:;|$)/.test(request.headers.get('Cookie')||'');
+  if (!authed) return json({ error:'no session' }, 401);
+
+  // init: 새 진행 세션(r2)
+  if (url.searchParams.get('init') === '1') {
+    const st = { v:1, step:0, alive:true, t:Date.now() };
+    const h = new Headers();
+    setCookie(h, 'r2', encState(st), { httpOnly:true, maxAge:60*60*2 });
+    return new Response(JSON.stringify({ ok:true, step:0 }), {
+      status:200, headers:new Headers([...h.entries(), ['Content-Type','application/json']])
+    });
   }
 
-  const body = await request.json().catch(()=> ({}));
-  const choice = String(body.choice||'').toUpperCase();
+  // 진행 요청 시 r2 필요
+  const r2 = getCookie(request, 'r2');
+  const state = parseState(r2);
+  if (!state || !state.alive) return json({ error:'no session' }, 401);
 
-  // 시간초과/무효 선택 처리
-  const valid = ['L','F','R'];
-  const timeout = (choice === 'TIMEOUT');
+  if (request.method === 'POST') {
+    const body = await request.json().catch(()=>({}));
+    const dir = (body.dir || '').toString().toUpperCase(); // L/F/R
+    if (!['L','F','R'].includes(dir)) return json({ error:'bad_dir' }, 400);
 
-  // 도전자 번호/단계는 나중에 KV로 관리. 우선 더미 값:
-  const num = Math.floor(Math.random()*900000) + 100000; // 더미 식별
-  const step = 1; // 데모: 항상 1단계로 간주
+    const ok = Math.floor(Math.random()*3) === 0; // 1/3
 
-  // 판정
-  let ok = false;
-  if (!timeout && valid.includes(choice)) {
-    ok = (Math.random() < (1/3));
-  } else {
-    ok = false;
+    const h = new Headers();
+    if (ok) {
+      state.step += 1;
+      setCookie(h, 'r2', encState(state), { httpOnly:true, maxAge:60*60*2 });
+      return new Response(JSON.stringify({ result:'advance', step:state.step }), {
+        status:200, headers:new Headers([...h.entries(), ['Content-Type','application/json']])
+      });
+    } else {
+      state.alive = false;
+      setCookie(h, 'r2', encState(state), { httpOnly:true, maxAge:60*10 });
+      return new Response(JSON.stringify({ result:'dead', step:state.step }), {
+        status:200, headers:new Headers([...h.entries(), ['Content-Type','application/json']])
+      });
+    }
   }
 
-  if (ok) {
-    return json({ ok:true, step: step+1 });
-  } else {
-    // 사망 → lastwords 단계로 넘어가도록 정보 제공
-    return json({ ok:false, num, step, cause: timeout ? '시간 초과' : '잘못된 문' });
-  }
-
-  function json(x, s=200){
-    return new Response(JSON.stringify(x), { status:s, headers:{'Content-Type':'application/json'}});
-  }
+  return json({ error:'Method Not Allowed' }, 405);
 }
