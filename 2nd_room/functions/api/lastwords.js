@@ -1,11 +1,8 @@
-// ENV: SECRET_SALT (선택), KV 바인딩: LINES
-const json = (x, s=200) => new Response(JSON.stringify(x), { status:s, headers:{'Content-Type':'application/json'} });
-
-const dec=(s)=>{ try{ return JSON.parse(atob(s)) } catch { return null } };
-const sha = async (s) => {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
-  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
-};
+const sanitize = (s) => String(s||'')
+  .replace(/[\u200B-\u200D\uFEFF]/g,'')
+  .replace(/\s{3,}/g,' ')
+  .trim()
+  .slice(0, 300);
 
 function getCookie(req, name){
   const c = req.headers.get('Cookie')||'';
@@ -13,45 +10,49 @@ function getCookie(req, name){
   return m ? decodeURIComponent(m[1]) : '';
 }
 
-export async function onRequest({ request, env }) {
-  const { LINES, SECRET_SALT = '' } = env;
-  if (request.method !== 'POST') return json({ error:'Method Not Allowed' }, 405);
+async function fpHash(req, salt=''){
+  const ip = req.headers.get('cf-connecting-ip') || req.headers.get('CF-Connecting-IP') || '0.0.0.0';
+  const ua = req.headers.get('user-agent') || '';
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${salt}|${ip}|${ua}`));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 
-  const r2raw = getCookie(request,'r2');
-  const st = dec(r2raw);
-  if (!st) return json({ error:'no session' }, 401);
-  if (st.alive) return json({ error:'not dead' }, 400);
+export async function onRequest({ request, env }){
+  const { LINES, SECRET_SALT='' } = env;
+  if (request.method !== 'POST')
+    return new Response('Method Not Allowed', { status:405 });
 
-  const { text } = await request.json().catch(()=>({}));
-  const body = String(text||'').trim();
-  if (!body) return json({ error:'EMPTY' }, 400);
-  if (body.length > 300) return json({ error:'TOO_LONG' }, 400);
+  // 죽은 상태에서만 허용(auth2=wall 혹은 r2.alive=false)
+  const cookies = request.headers.get('Cookie')||'';
+  if (!/(^|;\s*)auth2=wall(;|$)/.test(cookies))
+    return new Response(JSON.stringify({ ok:false, error:'forbidden' }), { status:403, headers:{'Content-Type':'application/json'} });
 
-  // 간단 중복 방지(세션+스텝 기준 한번만)
-  const markerKey = `mark:${await sha((r2raw||'')+'|'+st.step)}`;
-  const marked = await LINES.get(markerKey);
-  if (marked) return json({ error:'ALREADY' }, 409);
+  let body = {};
+  try { body = await request.json(); } catch {}
+  const text = sanitize(body.text);
 
-  const idx = JSON.parse(await LINES.get('idx') || '[]'); // [1,2,...]
-  const nextId = idx.length ? Math.max(...idx) + 1 : 1;
+  const fp = await fpHash(request, SECRET_SALT);
+  const key = `lw:${fp}`;               // 사용자당 1회(멱등)
+  const existed = await LINES.get(key);
 
-  const ip = request.headers.get('cf-connecting-ip') || request.headers.get('CF-Connecting-IP') || '0.0.0.0';
-  const sid = await sha(SECRET_SALT + '|' + ip);
+  if (existed) {
+    // 이미 저장되어 있으면 성공으로 간주(멱등)
+    return new Response(JSON.stringify({ ok:true, id:key, note:'already' }), {
+      status:200, headers:{'Content-Type':'application/json'}
+    });
+  }
 
-  const item = {
-    id: nextId,
-    nick: `도전자 ${nextId}`,
-    step: st.step,
-    cause: st.cause,
-    text: body,
-    ts: Date.now(),
-    who: sid.slice(0,16) // 가벼운 마스킹
-  };
+  const now = Date.now();
+  const item = { id:key, text, ts:now };
 
-  idx.push(nextId);
+  await LINES.put(key, JSON.stringify(item), { expirationTtl: 60*60*24*365 });
+
+  // 인덱스(간단)
+  const idx = JSON.parse(await LINES.get('idx') || '[]');
+  idx.push(key);
   await LINES.put('idx', JSON.stringify(idx));
-  await LINES.put(`c:${nextId}`, JSON.stringify(item));
-  await LINES.put(markerKey, '1', { expirationTtl: 60*60*24*365 });
 
-  return json({ ok:true, item });
+  return new Response(JSON.stringify({ ok:true, id:key }), {
+    status:200, headers:{'Content-Type':'application/json'}
+  });
 }
