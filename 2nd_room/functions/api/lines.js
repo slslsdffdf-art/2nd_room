@@ -1,28 +1,47 @@
 export async function onRequest({ request, env }) {
-  const { ROOM2_LINES } = env;
+  const { ROOM2_LINES, OWNER_PASSWORD = '' } = env;
+  if (!ROOM2_LINES) return j({ error:'NO_KV' }, 500);
+
   const url = new URL(request.url);
-  const mode = url.searchParams.get('mode') || '';
 
-  const idx = JSON.parse(await ROOM2_LINES.get('idx') || '[]');
-  if (mode === 'one') {
-    const lastId = idx[idx.length - 1];
-    if (!lastId) return json({ item: null });
-    const raw = await ROOM2_LINES.get('l:'+lastId);
-    if (!raw) return json({ item: null });
+  if (request.method === 'GET') {
+    const page = Math.max(1, parseInt(url.searchParams.get('page')||'1',10));
+    const limit = Math.max(1, Math.min(50, parseInt(url.searchParams.get('limit')||'20',10)));
 
-    const item = JSON.parse(raw);
-    return json({ item: { id:item.id, ts:item.ts, textMasked: mask(item.text) } });
+    const idx = JSON.parse(await ROOM2_LINES.get('idx') || '[]'); // [1..n]
+    const total = idx.length;
+    const totalPages = Math.max(1, Math.ceil(total/limit));
+    const cur = Math.min(page, totalPages);
+
+    const start = (cur-1)*limit, end = cur*limit;
+    const ids = idx.slice(total - end < 0 ? 0 : total - end, total - start).reverse(); // 최신→오래된 순
+    const items = [];
+    for (const id of ids) {
+      const raw = await ROOM2_LINES.get(`c:${id}`);
+      if (raw) items.push(JSON.parse(raw));
+    }
+    return j({ page:cur, totalPages, total, items });
   }
 
-  return json({ error:'NOT_IMPLEMENTED' }, 400);
+  if (request.method === 'DELETE') {
+    const auth = (request.headers.get('Authorization')||'').replace(/^Bearer\s+/i,'');
+    if (!OWNER_PASSWORD || auth !== OWNER_PASSWORD) return j({ error:'FORBIDDEN' }, 403);
 
-  function mask(s){
-    if(!s) return '(없음)';
-    // 60~80% 랜덤 가림
-    const rate = 0.6 + Math.random()*0.2;
-    return s.split('').map(ch => (/\s/.test(ch) || Math.random()>rate) ? ch : '●').join('');
+    const data = await request.json().catch(()=>({}));
+    const id = parseInt(data.id,10);
+    if (!id) return j({ error:'INVALID_ID' }, 400);
+
+    const idx = JSON.parse(await ROOM2_LINES.get('idx') || '[]');
+    const pos = idx.indexOf(id);
+    if (pos === -1) return j({ error:'NOT_FOUND' }, 404);
+
+    idx.splice(pos,1);
+    await ROOM2_LINES.put('idx', JSON.stringify(idx));
+    await ROOM2_LINES.delete(`c:${id}`);
+    return j({ ok:true });
   }
-  function json(x, s=200){
-    return new Response(JSON.stringify(x), { status:s, headers:{'Content-Type':'application/json'}});
-  }
+
+  return j({ error:'Method Not Allowed' }, 405);
 }
+
+function j(x,s=200){ return new Response(JSON.stringify(x), { status:s, headers:{'Content-Type':'application/json'} }); }
