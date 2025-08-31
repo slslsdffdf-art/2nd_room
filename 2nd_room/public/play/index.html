@@ -1,134 +1,73 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>두 번째 방 – 플레이</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-  :root{ --ink:#2b1b0e; --veil:rgba(255,255,255,.84); --rule:#b89a6a; --accent:#6b3b20 }
-  *{box-sizing:border-box}
-  body{
-    margin:0; min-height:100dvh; display:grid; place-items:center;
-    font-family:'Noto Serif KR',serif; color:var(--ink);
-    background:url("/images/parchment-bg.jpg") center/cover fixed no-repeat;
-  }
-  .card{
-    width:min(780px,92vw); background:var(--veil); border-radius:14px; padding:22px 18px;
-    box-shadow:0 18px 40px rgba(0,0,0,.25); transform:translateY(6px); animation:rise .5s ease forwards
-  }
-  @keyframes rise{to{transform:translateY(0)}}
-  h1{margin:0 0 6px}
-  #desc{white-space:pre-line; margin:0 0 12px}
-  .row{display:flex; gap:10px}
-  .btn{
-    flex:1; padding:14px 16px; font-size:18px; cursor:pointer; border:1px solid var(--rule);
-    background:#fffdf6; border-radius:10px; transition:transform .06s ease, box-shadow .2s ease
-  }
-  .btn:active{transform:translateY(1px)}
-  .fade{animation:fade .4s ease}
-  @keyframes fade{from{opacity:0} to{opacity:1}}
-
-  /* 모달 */
-  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center}
-  .modal{width:min(640px,92vw); background:#121212; color:#eee; border:1px solid #2f2f2f; border-radius:12px; padding:16px}
-  .modal h3{margin:0 0 6px; letter-spacing:.02em}
-  .modal p{margin:0 0 10px; opacity:.9}
-  textarea{width:100%; min-height:110px; resize:vertical; padding:10px; font-size:15px; border-radius:8px; border:1px solid #343434; background:#0e0e0e; color:#eee}
-  .actions{display:flex; gap:8px; justify-content:flex-end}
-  .pill{padding:10px 14px; border-radius:10px; border:1px solid #333; background:#1a1a1a; color:#eee; cursor:pointer}
-  .pill.primary{background:#2b1b0e; border-color:#5a402b}
-  .err{color:#f5a5a5; min-height:20px}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>두 번째 방 — 진행</title>
+  <style>
+    body{margin:0;background:#0b0b0b;color:#eee;font-family:system-ui,apple sd gothic neo,Segoe UI,Roboto,sans-serif}
+    .wrap{max-width:680px;margin:10vh auto;background:#151515;border:1px solid #2a2a2a;border-radius:14px;padding:24px}
+    h1{font-size:22px;margin:0 0 14px}
+    .row{display:flex;gap:10px;margin-top:16px}
+    button.sel{flex:1;padding:14px;border-radius:10px;border:1px solid #444;background:#0e0e0e;color:#eee;cursor:pointer;font-size:16px}
+    .log{margin-top:16px;min-height:24px;color:#bbb}
+    .dead{color:#ff7b7b}
+  </style>
 </head>
 <body>
-  <div class="card fade">
-    <h1>끝없는 복도</h1>
-    <p id="desc">세션을 준비하는 중…</p>
+  <div class="wrap">
+    <h1>선택하세요</h1>
     <div class="row">
-      <button class="btn" data-dir="L">왼쪽</button>
-      <button class="btn" data-dir="F">정면</button>
-      <button class="btn" data-dir="R">오른쪽</button>
+      <button class="sel" data-d="L">왼쪽</button>
+      <button class="sel" data-d="F">정면</button>
+      <button class="sel" data-d="R">오른쪽</button>
     </div>
+    <div id="log" class="log">세션 준비 중...</div>
   </div>
 
-  <!-- 유언 모달 -->
-  <div class="overlay" id="overlay">
-    <div class="modal">
-      <h3>너는 실패했다.</h3>
-      <p>단 한 줄을 남겨라. (최대 140자)</p>
-      <textarea id="lw" placeholder="유언 (선택)"></textarea>
-      <div class="err" id="derr"></div>
-      <div class="actions">
-        <button class="pill" id="skip">말 없이 떠난다</button>
-        <button class="pill primary" id="submitLW">유언 제출</button>
-      </div>
-    </div>
-  </div>
+  <script>
+  const log = (t, cls='')=>{
+    const el = document.getElementById('log');
+    el.className = 'log ' + cls;
+    el.textContent = t;
+  };
 
-<script>
-const desc = document.getElementById('desc');
-const ov = document.getElementById('overlay');
-const derr = document.getElementById('derr');
-const t = (s)=> (s||'').toString().replace(/\s{3,}/g,' ').trim();
+  // ★ 진입 즉시 세션 초기화
+  (async () => {
+    const r = await fetch('/api/choose?init=1', { method:'GET', credentials:'same-origin' });
+    if(!r.ok){
+      log('세션 초기화 실패. 게이트로 돌아갑니다…');
+      setTimeout(()=>location.href='/', 1200);
+      return;
+    }
+    log('준비 완료. 방향을 고르세요.');
+  })();
 
-async function init() {
-  const r = await fetch('/api/choose?init=1');
-  if (r.status === 401) return location.href='/?err=session';
-  const j = await r.json().catch(()=>({step:0}));
-  desc.textContent = `현재 단계: ${j.step}\n방향을 고르세요.`;
-}
-init();
+  // 선택
+  document.querySelectorAll('.sel').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      b.disabled = true;
+      log('판정 중…');
+      const r = await fetch('/api/choose', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ dir: b.dataset.d }),
+        credentials:'same-origin' // ★ 쿠키 동반
+      });
+      const data = await r.json().catch(()=>({}));
+      if(!r.ok){ log('오류: '+(data.error||r.statusText)); b.disabled=false; return; }
 
-async function pick(dir){
-  const r = await fetch('/api/choose', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ dir })
+      if(data.result==='advance'){
+        log(`전진! 현재 단계: ${data.step}`);
+      }else if(data.result==='dead'){
+        log(`사망… 원인: ${data.cause} (단계 ${data.step})`, 'dead');
+        // TODO: 유언 작성 화면으로 이동시키고 /api/lastwords 호출하도록 연결
+      }else{
+        log('알 수 없는 응답');
+      }
+      b.disabled = false;
+    });
   });
-  if (r.status === 401) return location.href='/?err=session';
-  const j = await r.json().catch(()=>({}));
-
-  if (j.result === 'advance') {
-    desc.textContent = `성공! 현재 단계: ${j.step}\n계속 진행하세요.`;
-    pulse();
-  } else if (j.result === 'dead') {
-    document.querySelectorAll('.btn').forEach(b=>b.disabled=true);
-    showModal();
-  } else {
-    alert(j.error || '오류');
-  }
-}
-
-function pulse(){
-  desc.classList.remove('fade'); void desc.offsetWidth; desc.classList.add('fade');
-}
-
-function showModal(){ ov.style.display='flex'; }
-function hideModal(){ ov.style.display='none'; }
-
-document.querySelectorAll('.btn').forEach(b=>{
-  b.addEventListener('click', ()=>pick(b.dataset.dir));
-});
-
-document.getElementById('skip').addEventListener('click', ()=> submitLW(true));
-document.getElementById('submitLW').addEventListener('click', ()=> submitLW(false));
-
-async function submitLW(skip){
-  derr.textContent='';
-  const text = skip ? '' : t(document.getElementById('lw').value).slice(0,140);
-  const r = await fetch('/api/lastwords', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ text })
-  });
-  if (r.ok) {
-    // 방명록으로 이동
-    location.href = '/log/?new=1';
-  } else {
-    const j = await r.json().catch(()=>({}));
-    derr.textContent = j.error || '유언 저장 실패';
-  }
-}
-</script>
+  </script>
 </body>
 </html>
