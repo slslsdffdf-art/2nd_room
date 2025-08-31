@@ -1,51 +1,60 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>두 번째 방 — 게이트</title>
-  <style>
-    body{margin:0;background:#111;color:#eee;font-family:system-ui,apple sd gothic neo,Segoe UI,Roboto,Apple Color Emoji,Noto Color Emoji,sans-serif}
-    .wrap{max-width:480px;margin:12vh auto;background:#1c1c1c;border:1px solid #333;border-radius:10px;padding:24px}
-    h1{font-size:22px;margin:0 0 12px}
-    input,button{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background:#0e0e0e;color:#eee}
-    button{margin-top:10px;cursor:pointer}
-    .msg{min-height:22px;color:#bbb;margin-top:8px}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>두 번째 방 – 게이트</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  body{
+    margin:0; padding:40px; font-family:'Noto Serif KR',serif;
+    background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat; color:#2b1b0e;
+  }
+  .card{max-width:540px;margin:8vh auto;background:rgba(255,255,255,.78);border-radius:12px;padding:24px 22px;box-shadow:0 6px 24px rgba(0,0,0,.2)}
+  h1{margin:0 0 8px; font-size:26px; text-align:center}
+  p{margin:6px 0 14px}
+  input[type=password]{width:100%;padding:12px;border:1px solid #c9b28a;border-radius:8px;font-size:16px}
+  button{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;background:#caa56a;color:#1d140c;font-weight:700;cursor:pointer}
+  .msg{min-height:22px;margin-top:8px;font-size:14px}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>입장 코드</h1>
-    <p style="color:#bbb">첫 번째 방을 탈출한 사람이면 코드를 알고 있습니다.</p>
-    <input id="code" placeholder="코드 입력" autocomplete="one-time-code" />
-    <button id="go">입장</button>
-    <div id="msg" class="msg"></div>
+  <div class="card">
+    <h1>두 번째 방 입장</h1>
+    <p>첫 번째 방 탈출자 전용 게이트입니다. 암호를 입력하세요.</p>
+    <form id="f" onsubmit="return false">
+      <input id="code" type="password" placeholder="암호" autocomplete="off">
+      <button id="btn">입장</button>
+      <div class="msg" id="msg"></div>
+    </form>
   </div>
 
-  <script>
-  const goBtn = document.getElementById('go');
-  const codeEl = document.getElementById('code');
-  const msgEl = document.getElementById('msg');
+<script>
+const f = document.getElementById('f');
+const code = document.getElementById('code');
+const msg = document.getElementById('msg');
+const btn = document.getElementById('btn');
 
-  goBtn.addEventListener('click', login);
-  codeEl.addEventListener('keydown', e => { if(e.key==='Enter') login(); });
-
-  async function login(){
-    const code = codeEl.value.trim();
-    if(!code){ msgEl.textContent = '코드를 입력하세요.'; return; }
-    goBtn.disabled = true; msgEl.textContent = '확인 중...';
+f.addEventListener('submit', async e=>{
+  e.preventDefault();
+  const v = code.value.trim();
+  if(!v){ msg.textContent='암호를 입력하세요.'; return; }
+  btn.disabled = true; msg.textContent = '확인 중...';
+  try{
     const r = await fetch('/api/login', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ code }),
-      credentials: 'same-origin' // ★ 쿠키 수신
+      credentials:'same-origin',           // ★ 쿠키 저장
+      body: JSON.stringify({ code: v })
     });
-    if(!r.ok){
-      msgEl.textContent = '코드가 올바르지 않습니다.';
-      goBtn.disabled = false; return;
-    }
+    if(!r.ok){ msg.textContent='암호가 틀렸습니다.'; btn.disabled=false; return; }
+    // 세션 발급 후 플레이로
     location.href = '/play/';
+  }catch(err){
+    msg.textContent = '네트워크 오류';
+    btn.disabled = false;
   }
-  </script>
+});
+</script>
 </body>
 </html>
