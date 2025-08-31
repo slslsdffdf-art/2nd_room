@@ -1,59 +1,119 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>방명록</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
-<style>
-  body{margin:0;padding:28px;font-family:'Noto Serif KR',serif;background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;color:#2b1b0e}
-  .wrap{max-width:760px;margin:0 auto;background:rgba(255,255,255,.78);border-radius:14px;padding:20px 18px}
-  .item{padding:10px 0;border-bottom:1px solid #c9b28a}
-  .pager{display:flex;gap:8px;justify-content:center;margin-top:12px}
-  .pager button{padding:8px 12px;border:0;background:#caa56a;border-radius:10px;cursor:pointer}
-</style>
+  <meta charset="UTF-8" />
+  <title>방명록</title>
+  <style>
+    body{font-family:'Noto Serif KR',serif; background:#f9f4ec; margin:20px;}
+    .adminbar{
+      display:flex; gap:8px; align-items:center; justify-content:space-between;
+      background:#efe6d5; border:1px solid #c8b79a; padding:8px 10px; border-radius:8px; margin-bottom:12px;
+    }
+    .admin-actions{ display:flex; gap:8px; align-items:center; }
+    .btn{ padding:6px 10px; border:1px solid #b89a6a; background:#fff7e9; border-radius:6px; cursor:pointer; }
+    .btn:disabled{ opacity:.6; cursor:not-allowed; }
+    h1{ margin:8px 0 12px; }
+    .item{border-bottom:1px solid #cfc3ad; margin:12px 0; padding:8px 0;}
+    .meta{ font-size:12px; color:#7a6a57; margin-top:4px }
+    .del{color:#a92525; cursor:pointer; font-size:12px; margin-left:8px;}
+    .pager{ margin-top:14px; display:flex; gap:8px; align-items:center; }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <h2>방명록</h2>
+  <div id="adminBar" class="adminbar" style="display:none;">
+    <div><strong>관리자 모드</strong></div>
+    <div class="admin-actions">
+      <button class="btn" id="refreshBtn">새로고침</button>
+      <button class="btn" id="logoutBtn">관리자 로그아웃</button>
+    </div>
+  </div>
+
+  <h1>방명록</h1>
   <div id="list"></div>
-  <div class="pager" id="pager"></div>
-  <p><a href="/play/">← 돌아가기</a></p>
-</div>
 
-<script>
-let page = 1, total=0, limit=10;
+  <div class="pager">
+    <button class="btn" id="prevBtn">이전</button>
+    <span id="pageInfo"></span>
+    <button class="btn" id="nextBtn">다음</button>
+  </div>
 
-async function load(){
-  const r = await fetch(`/api/lines?page=${page}&limit=${limit}`, { credentials:'same-origin' });
-  const data = await r.json().catch(()=>({items:[]}));
-  total = data.total || 0;
-  const list = document.getElementById('list');
-  list.innerHTML = '';
-  (data.items||[]).forEach(it=>{
-    const div = document.createElement('div');
-    div.className='item';
-    div.innerHTML = `<b>[${it.nick}]</b> (단계 ${it.step}, 원인: ${it.cause})<br>${escapeHtml(it.text)}<br>
-    <small>${new Date(it.ts).toLocaleString()}</small>`;
-    list.appendChild(div);
-  });
-  renderPager(data.page || 1, data.limit || limit, total);
-}
+  <script>
+    function getCookie(name){
+      return document.cookie.split(';').map(c=>c.trim())
+        .find(c=>c.startsWith(name+'='))?.split('=')[1] || '';
+    }
+    const isAdmin = getCookie('admin') === '1';
+    const adminBar = document.getElementById('adminBar');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
 
-function renderPager(cur, lim, tot){
-  const p = document.getElementById('pager');
-  p.innerHTML = '';
-  const pages = Math.max(1, Math.ceil(tot/lim));
-  const add = (label, to, dis=false)=>{
-    const b = document.createElement('button'); b.textContent=label; b.disabled=dis;
-    b.onclick = ()=>{ page = to; load(); }; p.appendChild(b);
-  };
-  add('처음', 1, cur<=1); add('이전', Math.max(1,cur-1), cur<=1);
-  add('다음', Math.min(pages,cur+1), cur>=pages); add('마지막', pages, cur>=pages);
-}
-function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m]));}
+    if (isAdmin) {
+      adminBar.style.display = 'flex';
+      refreshBtn.onclick = ()=>load();
+      logoutBtn.onclick = async ()=>{
+        const pw = prompt('OWNER_PASSWORD 입력(관리자 로그아웃)');
+        if(!pw) return;
+        const r = await fetch('/api/admin-logout', { method:'POST', headers:{ Authorization:'Bearer '+pw } });
+        if (r.ok) { alert('관리자 모드 해제'); location.reload(); }
+        else { alert('실패: '+(await r.text())); }
+      };
+    }
 
-load();
-</script>
+    let curPage = 1, limit = 20, total = 0;
+    const listEl = document.getElementById('list');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const pageInfo = document.getElementById('pageInfo');
+
+    prevBtn.onclick = ()=>{ if(curPage>1){ curPage--; load(); } };
+    nextBtn.onclick = ()=>{ const tp=Math.max(1,Math.ceil(total/limit)); if(curPage<tp){ curPage++; load(); } };
+
+    async function load(){
+      const r = await fetch(`/api/lines?page=${curPage}&limit=${limit}`);
+      const d = await r.json();
+      total = d.total || 0;
+      const tp = Math.max(1, Math.ceil(total/limit));
+      pageInfo.textContent = `${curPage} / ${tp}`;
+      prevBtn.disabled = curPage<=1;
+      nextBtn.disabled = curPage>=tp;
+
+      listEl.innerHTML='';
+      (d.items||[]).forEach(it=>{
+        const div=document.createElement('div');
+        div.className='item';
+        const text = (it.text||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const time = it.time || new Date(it.ts||Date.now()).toLocaleString();
+        div.innerHTML = `
+          <b>[도전자 ${it.id}]</b><br>
+          ${text}
+          <div class="meta">단계: ${it.step||0} · 원인: ${it.cause||'?'} · ${time}</div>
+        `;
+        if (isAdmin) {
+          const btn=document.createElement('span');
+          btn.className='del';
+          btn.textContent='[삭제]';
+          btn.onclick=()=>del(it.id);
+          div.querySelector('.meta').appendChild(btn);
+        }
+        listEl.appendChild(div);
+      });
+    }
+
+    async function del(id){
+      if(!confirm(`도전자 ${id} 항목을 삭제할까요?`)) return;
+      const pw = prompt('OWNER_PASSWORD 입력(삭제)');
+      if(!pw) return;
+      const r = await fetch('/api/lines',{
+        method:'DELETE',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+pw},
+        body: JSON.stringify({ id })
+      });
+      const d = await r.json().catch(()=>({}));
+      if (d && d.ok) { alert('삭제 완료'); load(); }
+      else { alert('삭제 실패: ' + (d.error || r.status)); }
+    }
+
+    load();
+  </script>
 </body>
 </html>
