@@ -1,73 +1,116 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>두 번째 방 — 진행</title>
-  <style>
-    body{margin:0;background:#0b0b0b;color:#eee;font-family:system-ui,apple sd gothic neo,Segoe UI,Roboto,sans-serif}
-    .wrap{max-width:680px;margin:10vh auto;background:#151515;border:1px solid #2a2a2a;border-radius:14px;padding:24px}
-    h1{font-size:22px;margin:0 0 14px}
-    .row{display:flex;gap:10px;margin-top:16px}
-    button.sel{flex:1;padding:14px;border-radius:10px;border:1px solid #444;background:#0e0e0e;color:#eee;cursor:pointer;font-size:16px}
-    .log{margin-top:16px;min-height:24px;color:#bbb}
-    .dead{color:#ff7b7b}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>두 번째 방 – 진행</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;padding:28px;font-family:'Noto Serif KR',serif;background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;color:#2b1b0e}
+  .wrap{max-width:760px;margin:0 auto;background:rgba(255,255,255,.78);border-radius:14px;padding:20px 18px}
+  .row{display:flex;gap:10px;justify-content:center;margin:16px 0}
+  button.choice{flex:1;max-width:200px;padding:14px 10px;border:0;border-radius:12px;background:#caa56a;cursor:pointer;font-weight:700}
+  .status{min-height:28px;text-align:center;margin-top:8px}
+  .dead{color:#7b1f1f}
+  .timer{font-weight:700}
+  textarea{width:100%;height:120px;resize:vertical}
+  .hidden{display:none}
+  a.btn{display:inline-block;margin-top:10px;padding:10px 14px;background:#2b1b0e;color:#fff;border-radius:10px;text-decoration:none}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>선택하세요</h1>
-    <div class="row">
-      <button class="sel" data-d="L">왼쪽</button>
-      <button class="sel" data-d="F">정면</button>
-      <button class="sel" data-d="R">오른쪽</button>
-    </div>
-    <div id="log" class="log">세션 준비 중...</div>
+<div class="wrap">
+  <h2 style="margin-top:4px">끝없는 복도</h2>
+  <p>왼쪽 / 정면 / 오른쪽 중 하나를 선택하세요. (<span class="timer" id="timer">90</span>초)</p>
+  <div class="row">
+    <button class="choice" data-dir="L">왼쪽</button>
+    <button class="choice" data-dir="F">정면</button>
+    <button class="choice" data-dir="R">오른쪽</button>
   </div>
+  <div class="status" id="status"></div>
 
-  <script>
-  const log = (t, cls='')=>{
-    const el = document.getElementById('log');
-    el.className = 'log ' + cls;
-    el.textContent = t;
-  };
+  <div id="death" class="hidden">
+    <h3 class="dead">사망했습니다.</h3>
+    <p>유언을 남길 수 있습니다. (최대 300자)</p>
+    <textarea id="lw" placeholder="다음 도전자에게 전할 말(선택)"></textarea>
+    <div class="row" style="justify-content:flex-end">
+      <button id="saveLW" class="choice" style="max-width:160px">유언 남기기</button>
+    </div>
+    <p><a class="btn" href="/play/wall.html">방명록 보기</a></p>
+  </div>
+</div>
 
-  // ★ 진입 즉시 세션 초기화
-  (async () => {
-    const r = await fetch('/api/choose?init=1', { method:'GET', credentials:'same-origin' });
-    if(!r.ok){
-      log('세션 초기화 실패. 게이트로 돌아갑니다…');
-      setTimeout(()=>location.href='/', 1200);
-      return;
-    }
-    log('준비 완료. 방향을 고르세요.');
-  })();
+<script>
+const statusEl = document.getElementById('status');
+const timerEl  = document.getElementById('timer');
+const deathBox = document.getElementById('death');
+const lwEl = document.getElementById('lw');
+const saveLW = document.getElementById('saveLW');
 
-  // 선택
-  document.querySelectorAll('.sel').forEach(b=>{
-    b.addEventListener('click', async ()=>{
-      b.disabled = true;
-      log('판정 중…');
-      const r = await fetch('/api/choose', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ dir: b.dataset.d }),
-        credentials:'same-origin' // ★ 쿠키 동반
-      });
-      const data = await r.json().catch(()=>({}));
-      if(!r.ok){ log('오류: '+(data.error||r.statusText)); b.disabled=false; return; }
+let left = 90, ticking=true;
+const tick = ()=>{
+  if(!ticking) return;
+  timerEl.textContent = left;
+  if(left<=0){
+    ticking=false;
+    // 시간초과 == 사망 처리처럼 안내
+    statusEl.innerHTML = '<span class="dead">시간 초과로 죽음에 이르렀습니다.</span>';
+    deathBox.classList.remove('hidden');
+    return;
+  }
+  left--; setTimeout(tick, 1000);
+};
 
-      if(data.result==='advance'){
-        log(`전진! 현재 단계: ${data.step}`);
-      }else if(data.result==='dead'){
-        log(`사망… 원인: ${data.cause} (단계 ${data.step})`, 'dead');
-        // TODO: 유언 작성 화면으로 이동시키고 /api/lastwords 호출하도록 연결
-      }else{
-        log('알 수 없는 응답');
-      }
-      b.disabled = false;
+async function init(){
+  const r = await fetch('/api/choose?init=1', { credentials:'same-origin' });
+  if(!r.ok){ location.href='/'; return; }
+  tick();
+}
+init();
+
+document.querySelectorAll('.choice').forEach(btn=>{
+  if(btn.id==='saveLW') return;
+  btn.addEventListener('click', async ()=>{
+    if(!ticking) return;
+    ticking=false;
+    const dir = btn.dataset.dir;
+    statusEl.textContent = '이동 중...';
+    const r = await fetch('/api/choose', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'same-origin',
+      body: JSON.stringify({ dir })
     });
+    const data = await r.json().catch(()=>({}));
+    if(data.result==='advance'){
+      statusEl.textContent = `전진합니다. 현재 단계: ${data.step}`;
+      // 다음 선택을 위해 타이머 리셋
+      left = 90; ticking=true; tick();
+    }else if(data.result==='dead'){
+      statusEl.innerHTML = `<span class="dead">사망: ${data.cause}</span>`;
+      deathBox.classList.remove('hidden');
+    }else{
+      statusEl.textContent = '오류가 발생했습니다.';
+    }
   });
-  </script>
+});
+
+saveLW.addEventListener('click', async ()=>{
+  const text = lwEl.value.trim();
+  const r = await fetch('/api/lastwords', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    credentials:'same-origin',
+    body: JSON.stringify({ text })
+  });
+  if(r.ok){
+    saveLW.disabled = true;
+    saveLW.textContent = '저장됨';
+    location.href = '/play/wall.html';
+  }else{
+    alert('저장 실패');
+  }
+});
+</script>
 </body>
 </html>
