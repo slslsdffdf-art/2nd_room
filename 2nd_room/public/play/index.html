@@ -14,33 +14,29 @@
       background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;
     }
     .wrap{ max-width:720px; margin:0 auto; background:rgba(255,255,255,.76); border-radius:12px; padding:26px 22px; }
-    h1{ text-align:center; font-size:26px; margin:0 0 18px }
-    p{ margin:0 0 10px }
+    h1{ text-align:center; font-size:26px; margin:0 0 12px }
+    .hint{ background:#fff7e9; border:1px solid var(--rule); border-radius:8px; padding:10px 12px; margin:6px 0 14px; }
+    .small{ font-size:13px; color:#7a5c24 }
     .btn{ display:inline-block; width:100%; padding:12px 14px; margin:8px 0; text-align:center;
           border:1px solid var(--rule); background:#f7efe2; cursor:pointer; border-radius:8px; font-size:18px; }
     .btn:disabled{ opacity:.5; cursor:not-allowed }
-    .note{ font-size:13px; color:#7a5c24; margin-top:8px }
-    .hidden{ display:none !important }
     .center{ text-align:center }
     textarea{ width:100%; min-height:120px; resize:vertical; padding:10px; }
     .status{ font-size:13px; color:#795548; margin-left:8px }
     .sep{ height:1px; background:var(--rule); opacity:.5; margin:16px 0 }
+    .hidden{ display:none !important }
   </style>
-  <script>
-    // 새로고침/재접속 방지: 사망자 쿠키 있으면 곧장 방명록으로
-    (function(){
-      if (document.cookie.includes('auth2=wall')) {
-        location.replace('/play/wall');
-      }
-    })();
-  </script>
 </head>
 <body>
   <div class="wrap">
     <h1>끝없는 복도</h1>
-    <p class="center" id="stepInfo">방 0</p>
 
-    <!-- 선택 화면 -->
+    <div id="hintBox" class="hint hidden">
+      <div class="small">[직전 도전자의 유언]</div>
+      <div id="hintText">—</div>
+    </div>
+
+    <p class="center" id="stepInfo">방 0</p>
     <div id="chooseBox">
       <p class="center">앞/왼/오 중 하나를 선택하세요. (남은 시간 <span id="timer">–</span>)</p>
       <button class="btn" id="btnL">왼쪽</button>
@@ -48,7 +44,6 @@
       <button class="btn" id="btnR">오른쪽</button>
     </div>
 
-    <!-- 통과 화면 -->
     <div id="aliveBox" class="hidden center">
       <p>문이 열렸습니다. 더 깊은 방으로 전진합니다…</p>
       <div class="sep"></div>
@@ -58,18 +53,17 @@
     <!-- 사망 화면 -->
     <div id="deathBox" class="hidden">
       <p>사망 원인: <b><span id="cause"></span></b></p>
-      <p class="note">유언은 선택 사항입니다. 저장만 하고 이 화면에 머무릅니다.</p>
+      <p class="small">유언은 선택 사항입니다. <b id="limitInfo"></b> 내 입력이 없으면 기본 문구로 처리됩니다.</p>
       <textarea id="lastText" maxlength="300" placeholder="유언을 남기시겠습니까? (최대 300자)"></textarea>
       <div style="margin-top:8px;">
         <button class="btn" id="saveLWBtn">유언 저장</button>
-        <button class="btn hidden" id="toLogBtn">방명록 보러가기</button>
         <span id="saveStatus" class="status"></span>
       </div>
     </div>
   </div>
 
   <script>
-    const $ = (s)=>document.querySelector(s);
+    const $ = (sel)=>document.querySelector(sel);
     const btnL = $('#btnL'), btnF = $('#btnF'), btnR = $('#btnR');
     const chooseBox = $('#chooseBox');
     const aliveBox  = $('#aliveBox');
@@ -78,40 +72,49 @@
     const stepInfo  = $('#stepInfo');
     const timerEl   = $('#timer');
     const saveBtn   = $('#saveLWBtn');
-    const toLogBtn  = $('#toLogBtn');
     const saveStatus= $('#saveStatus');
     const lastText  = $('#lastText');
+    const hintBox = $('#hintBox');
+    const hintText = $('#hintText');
+    const limitInfo = $('#limitInfo');
 
-    let remain = 0, tick = null, dead = false;
+    let hbTimer=null, selectTimer=null, remain=0, lwRemain=0, lwTick=null, lwLimit=45;
+
+    function startHB(){
+      stopHB();
+      hbTimer = setInterval(()=>fetch('/api/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hb:true})}), 10000);
+    }
+    function stopHB(){ if(hbTimer){ clearInterval(hbTimer); hbTimer=null; } }
 
     function setTimer(s){
       remain = s;
       timerEl.textContent = remain;
-      clearInterval(tick);
-      tick = setInterval(()=>{
+      clearInterval(selectTimer);
+      selectTimer = setInterval(()=>{
         remain--;
         timerEl.textContent = remain;
-        if(remain<=0){
-          clearInterval(tick);
-          showDeath('시간 초과');
-        }
+        if(remain<=0){ clearInterval(selectTimer); showDeath('시간 초과'); }
       },1000);
-    }
-
-    function disableChoice(disabled){
-      [btnL,btnF,btnR].forEach(b=>b.disabled=disabled);
     }
 
     async function init(){
       const r = await fetch('/api/choose?init=1');
-      if(!r.ok){ alert('세션이 만료되었습니다. 입장 화면으로 돌아갑니다.'); location.href='/'; return; }
-      const d = await r.json().catch(()=>({}));
+      if(!r.ok){ alert('세션이 만료되었습니다. 로비로 이동합니다.'); location.href='/lobby.html'; return; }
+      const d = await r.json();
       stepInfo.textContent = '방 ' + (d.step||0);
+      if (d.lastHint && d.lastHint.text) {
+        hintText.textContent = d.lastHint.text;
+        hintBox.classList.remove('hidden');
+      }
+      lwLimit = d.lw_limit_sec || 45;
+      limitInfo.textContent = `${lwLimit}초`;
       setTimer(90);
+      startHB();
     }
 
+    function disableChoice(v){ [btnL,btnF,btnR].forEach(b=>b.disabled=v); }
+
     async function choose(dir){
-      if (dead) return;
       disableChoice(true);
       try{
         const r = await fetch('/api/choose', {
@@ -122,12 +125,13 @@
         if(!r.ok){ alert(d.error||'오류'); disableChoice(false); return; }
 
         if(d.result === 'advance'){
-          clearInterval(tick);
+          clearInterval(selectTimer);
           stepInfo.textContent = '방 ' + d.step;
           chooseBox.classList.add('hidden');
           aliveBox.classList.remove('hidden');
         }else if(d.result === 'dead'){
-          clearInterval(tick);
+          clearInterval(selectTimer);
+          stopHB();
           showDeath(d.cause || '알 수 없음');
         }else{
           alert('알 수 없는 응답');
@@ -140,35 +144,23 @@
     }
 
     function showDeath(cause){
-      dead = true;
       causeEl.textContent = cause;
       chooseBox.classList.add('hidden');
       aliveBox.classList.add('hidden');
       deathBox.classList.remove('hidden');
 
-      // 쿠키가 wall로 바뀔 시간을 조금 줌
-      saveBtn.disabled = true;
-      saveStatus.textContent = '세션 준비중…';
-      setTimeout(()=>{ 
-        if (document.cookie.includes('auth2=wall')) {
-          saveBtn.disabled = false;
-          saveStatus.textContent = '';
-        } else {
-          // 주기적 재확인 (최대 3초)
-          let tries = 0;
-          const iv = setInterval(()=>{
-            tries++;
-            if (document.cookie.includes('auth2=wall')) {
-              clearInterval(iv);
-              saveBtn.disabled = false;
-              saveStatus.textContent = '';
-            } else if (tries>=6) {
-              clearInterval(iv);
-              saveStatus.textContent = '세션 준비 실패. 잠시 후 다시 시도';
-            }
-          },500);
+      // 유언 타이머
+      lwRemain = lwLimit;
+      lwTick = setInterval(()=>{
+        lwRemain--;
+        limitInfo.textContent = `${lwRemain}초`;
+        if(lwRemain<=0){
+          clearInterval(lwTick);
+          saveBtn.disabled = true;
+          lastText.disabled = true;
+          saveStatus.textContent = '시간 초과 (기본 문구 처리됩니다)';
         }
-      }, 200);
+      },1000);
     }
 
     $('#btnNext').addEventListener('click', ()=>{
@@ -177,33 +169,26 @@
       disableChoice(false);
       setTimer(90);
     });
-
     btnL.onclick = ()=>choose('L');
     btnF.onclick = ()=>choose('F');
     btnR.onclick = ()=>choose('R');
 
     async function submitLastWords(){
-      if (!document.cookie.includes('auth2=wall')) {
-        saveStatus.textContent = '세션 준비중… 잠시 후 다시 시도';
-        return;
-      }
-      const text = lastText.value.trim();
+      if (saveBtn.disabled) return;
       saveBtn.disabled = true;
       saveStatus.textContent = '저장중…';
       try{
         const r = await fetch('/api/lastwords', {
           method:'POST',
           headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ text })
+          body: JSON.stringify({ text: lastText.value.trim() })
         });
         const d = await r.json().catch(()=>({}));
-        if (r.ok && d.ok) {
-          // already여도 성공 처리
-          saveStatus.textContent = d.already ? '이미 저장된 유언입니다' : '저장 완료';
+        if(r.ok && d.ok){
+          saveStatus.textContent = d.already ? '이미 저장됨' : '저장 완료';
           lastText.disabled = true;
-          saveBtn.disabled = true;
-          toLogBtn.classList.remove('hidden');
-        } else {
+          // 서버가 active 해제 -> 다음 도전자 자동 입장
+        }else{
           saveStatus.textContent = d.error || '저장 실패';
           saveBtn.disabled = false;
         }
@@ -212,9 +197,7 @@
         saveBtn.disabled = false;
       }
     }
-
     saveBtn.addEventListener('click', submitLastWords);
-    toLogBtn.addEventListener('click', ()=>{ location.href = '/play/wall'; });
 
     init();
   </script>
