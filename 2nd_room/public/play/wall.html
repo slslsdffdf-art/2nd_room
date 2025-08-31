@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>방명록</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;padding:28px;font-family:'Noto Serif KR',serif;background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;color:#2b1b0e}
+  .wrap{max-width:760px;margin:0 auto;background:rgba(255,255,255,.78);border-radius:14px;padding:20px 18px}
+  .item{padding:10px 0;border-bottom:1px solid #c9b28a}
+  .pager{display:flex;gap:8px;justify-content:center;margin-top:12px}
+  .pager button{padding:8px 12px;border:0;background:#caa56a;border-radius:10px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>방명록</h2>
+  <div id="list"></div>
+  <div class="pager" id="pager"></div>
+  <p><a href="/play/">← 돌아가기</a></p>
+</div>
+
+<script>
+let page = 1, total=0, limit=10;
+
+async function load(){
+  const r = await fetch(`/api/lines?page=${page}&limit=${limit}`, { credentials:'same-origin' });
+  const data = await r.json().catch(()=>({items:[]}));
+  total = data.total || 0;
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  (data.items||[]).forEach(it=>{
+    const div = document.createElement('div');
+    div.className='item';
+    div.innerHTML = `<b>[${it.nick}]</b> (단계 ${it.step}, 원인: ${it.cause})<br>${escapeHtml(it.text)}<br>
+    <small>${new Date(it.ts).toLocaleString()}</small>`;
+    list.appendChild(div);
+  });
+  renderPager(data.page || 1, data.limit || limit, total);
+}
+
+function renderPager(cur, lim, tot){
+  const p = document.getElementById('pager');
+  p.innerHTML = '';
+  const pages = Math.max(1, Math.ceil(tot/lim));
+  const add = (label, to, dis=false)=>{
+    const b = document.createElement('button'); b.textContent=label; b.disabled=dis;
+    b.onclick = ()=>{ page = to; load(); }; p.appendChild(b);
+  };
+  add('처음', 1, cur<=1); add('이전', Math.max(1,cur-1), cur<=1);
+  add('다음', Math.min(pages,cur+1), cur>=pages); add('마지막', pages, cur>=pages);
+}
+function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m]));}
+
+load();
+</script>
+</body>
+</html>
