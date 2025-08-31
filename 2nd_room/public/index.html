@@ -1,54 +1,51 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <title>두 번째 방 – 입장</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>두 번째 방 — 게이트</title>
   <style>
-    :root{--ink:#2b1b0e;}
-    *{box-sizing:border-box}
-    body{
-      margin:0; min-height:100dvh; display:grid; place-items:center;
-      background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;
-      font-family:'Noto Serif KR',serif; color:var(--ink);
-    }
-    .card{background:rgba(255,255,255,.82); padding:28px 22px; border-radius:12px; width:min(680px,92vw)}
-    h1{margin:0 0 6px}
-    p{margin:0 0 16px}
-    input{width:100%; padding:12px; font-size:18px}
-    button{padding:12px 18px; font-size:16px; cursor:pointer; margin-top:10px}
-    #msg{margin-top:10px; color:#7b2a2a}
+    body{margin:0;background:#111;color:#eee;font-family:system-ui,apple sd gothic neo,Segoe UI,Roboto,Apple Color Emoji,Noto Color Emoji,sans-serif}
+    .wrap{max-width:480px;margin:12vh auto;background:#1c1c1c;border:1px solid #333;border-radius:10px;padding:24px}
+    h1{font-size:22px;margin:0 0 12px}
+    input,button{width:100%;padding:12px;border-radius:8px;border:1px solid #444;background:#0e0e0e;color:#eee}
+    button{margin-top:10px;cursor:pointer}
+    .msg{min-height:22px;color:#bbb;margin-top:8px}
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>두 번째 방</h1>
-    <p>첫 번째 방 탈출자가 알고 있는 입장 코드를 입력하세요.</p>
-    <form id="f" onsubmit="return false">
-      <input id="code" placeholder="입장 코드" autocomplete="off" />
-      <button id="go">입장</button>
-      <div id="msg"></div>
-    </form>
+  <div class="wrap">
+    <h1>입장 코드</h1>
+    <p style="color:#bbb">첫 번째 방을 탈출한 사람이면 코드를 알고 있습니다.</p>
+    <input id="code" placeholder="코드 입력" autocomplete="one-time-code" />
+    <button id="go">입장</button>
+    <div id="msg" class="msg"></div>
   </div>
 
   <script>
-    const msg = document.getElementById('msg');
-    document.getElementById('go').addEventListener('click', async ()=>{
-      msg.textContent = '';
-      const code = document.getElementById('code').value.trim();
-      if(!code){ msg.textContent='코드를 입력하세요.'; return; }
-      const r = await fetch('/api/login', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ code })
-      });
-      if(r.ok){ location.href='/play/'; }
-      else {
-        const j = await r.json().catch(()=>({}));
-        msg.textContent = j.error || '입장 실패';
-      }
+  const goBtn = document.getElementById('go');
+  const codeEl = document.getElementById('code');
+  const msgEl = document.getElementById('msg');
+
+  goBtn.addEventListener('click', login);
+  codeEl.addEventListener('keydown', e => { if(e.key==='Enter') login(); });
+
+  async function login(){
+    const code = codeEl.value.trim();
+    if(!code){ msgEl.textContent = '코드를 입력하세요.'; return; }
+    goBtn.disabled = true; msgEl.textContent = '확인 중...';
+    const r = await fetch('/api/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ code }),
+      credentials: 'same-origin' // ★ 쿠키 수신
     });
+    if(!r.ok){
+      msgEl.textContent = '코드가 올바르지 않습니다.';
+      goBtn.disabled = false; return;
+    }
+    location.href = '/play/';
+  }
   </script>
 </body>
 </html>
