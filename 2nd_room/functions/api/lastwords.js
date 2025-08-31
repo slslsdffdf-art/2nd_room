@@ -1,58 +1,51 @@
-const sanitize = (s) => String(s||'')
-  .replace(/[\u200B-\u200D\uFEFF]/g,'')
-  .replace(/\s{3,}/g,' ')
-  .trim()
-  .slice(0, 300);
+export async function onRequest({ request, env }) {
+  const { LINES, SECRET_SALT = '' } = env;
+  const authedWall = /(?:^|;\s*)auth2=wall(?:;|$)/.test(request.headers.get('Cookie')||'');
+  if (!authedWall) {
+    return new Response(JSON.stringify({ ok:false, error:'forbidden' }), {
+      status: 403, headers: { 'Content-Type':'application/json' }
+    });
+  }
 
-function getCookie(req, name){
-  const c = req.headers.get('Cookie')||'';
-  const m = c.match(new RegExp('(?:^|;\\s*)'+name+'=([^;]+)'));
-  return m ? decodeURIComponent(m[1]) : '';
-}
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ ok:false, error:'Method Not Allowed' }), {
+      status:405, headers:{'Content-Type':'application/json'}
+    });
+  }
 
-async function fpHash(req, salt=''){
-  const ip = req.headers.get('cf-connecting-ip') || req.headers.get('CF-Connecting-IP') || '0.0.0.0';
-  const ua = req.headers.get('user-agent') || '';
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${salt}|${ip}|${ua}`));
-  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
-}
+  const body = await request.json().catch(()=>({}));
+  const text = String(body.text||'').slice(0,300);
 
-export async function onRequest({ request, env }){
-  const { LINES, SECRET_SALT='' } = env;
-  if (request.method !== 'POST')
-    return new Response('Method Not Allowed', { status:405 });
+  // 요청자 식별키(하루 단위로 멱등 처리 예시)
+  const ip = request.headers.get('cf-connecting-ip') || request.headers.get('CF-Connecting-IP') || '0.0.0.0';
+  const idKey = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${SECRET_SALT}|${ip}|wall`));
+  const keyHex = [...new Uint8Array(idKey)].map(b=>b.toString(16).padStart(2,'0')).join('');
 
-  // 죽은 상태에서만 허용(auth2=wall 혹은 r2.alive=false)
-  const cookies = request.headers.get('Cookie')||'';
-  if (!/(^|;\s*)auth2=wall(;|$)/.test(cookies))
-    return new Response(JSON.stringify({ ok:false, error:'forbidden' }), { status:403, headers:{'Content-Type':'application/json'} });
-
-  let body = {};
-  try { body = await request.json(); } catch {}
-  const text = sanitize(body.text);
-
-  const fp = await fpHash(request, SECRET_SALT);
-  const key = `lw:${fp}`;               // 사용자당 1회(멱등)
-  const existed = await LINES.get(key);
-
+  const existed = await LINES.get(`lw:${keyHex}`);
   if (existed) {
-    // 이미 저장되어 있으면 성공으로 간주(멱등)
-    return new Response(JSON.stringify({ ok:true, id:key, note:'already' }), {
+    return new Response(JSON.stringify({ ok:true, already:true }), {
       status:200, headers:{'Content-Type':'application/json'}
     });
   }
 
-  const now = Date.now();
-  const item = { id:key, text, ts:now };
+  const idxRaw = await LINES.get('idx');
+  const idx = idxRaw ? JSON.parse(idxRaw) : [];
+  const nextId = idx.length ? Math.max(...idx)+1 : 1;
 
-  await LINES.put(key, JSON.stringify(item), { expirationTtl: 60*60*24*365 });
+  const item = {
+    id: nextId,
+    ts: Date.now(),
+    step: 0, // 기록용(원하면 r2 decode해서 채워도 됨)
+    cause: '사망', // 프론트에선 별도로 표기
+    text: text || ''
+  };
 
-  // 인덱스(간단)
-  const idx = JSON.parse(await LINES.get('idx') || '[]');
-  idx.push(key);
+  idx.push(nextId);
   await LINES.put('idx', JSON.stringify(idx));
+  await LINES.put(`c:${nextId}`, JSON.stringify(item));
+  await LINES.put(`lw:${keyHex}`, '1', { expirationTtl: 60*60*24*30 }); // 30일 중복 방지
 
-  return new Response(JSON.stringify({ ok:true, id:key }), {
+  return new Response(JSON.stringify({ ok:true, id: nextId }), {
     status:200, headers:{'Content-Type':'application/json'}
   });
 }
