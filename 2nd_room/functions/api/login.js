@@ -1,37 +1,33 @@
-// POST /api/login  { code }
-// 비번이 맞으면 auth2=ok 쿠키 심고 ok:true 반환
+// ENV: PASSWORD (필수) – 1방 탈출자에게만 공개된 암호
+const json = (x, s=200, headers={}) =>
+  new Response(JSON.stringify(x), { status: s, headers: { 'Content-Type':'application/json', ...headers } });
+
+function setCookie(headers, name, value, opts={}) {
+  const p = [
+    `${name}=${encodeURIComponent(value)}`,
+    'Path=/',
+    'SameSite=Lax',
+    'Secure',
+    opts.httpOnly ? 'HttpOnly' : '',
+    opts.maxAge ? `Max-Age=${opts.maxAge}` : '',
+  ].filter(Boolean).join('; ');
+  headers.append('Set-Cookie', p);
+}
+
 export async function onRequest({ request, env }) {
-  const { PASSWORD = "" } = env;
+  if (request.method !== 'POST') return json({ error:'Method Not Allowed' }, 405);
 
-  if (request.method !== "POST") {
-    return new Response("Method Not Allowed", { status: 405 });
-  }
+  const { PASSWORD = '' } = env;
+  const body = await request.json().catch(()=>({}));
+  const code = String(body.code || '').trim();
 
-  let code = "";
-  try {
-    ({ code = "" } = await request.json());
-  } catch (_) {}
+  if (!PASSWORD || !code) return json({ error:'INVALID' }, 400);
 
-  if (String(code) !== String(PASSWORD)) {
-    return new Response(JSON.stringify({ ok: false, error: "bad_code" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  if (code !== PASSWORD) return json({ ok:false, error:'WRONG' }, 401);
 
-  const h = new Headers({ "Content-Type": "application/json" });
-  // ★ auth2=ok 세션 쿠키 (게이트 통과)
-  h.append(
-    "Set-Cookie",
-    [
-      "auth2=ok",
-      "Path=/",
-      "Max-Age=7200", // 2h
-      "SameSite=Lax",
-      "Secure",
-      "HttpOnly",
-    ].join("; ")
-  );
+  const h = new Headers();
+  // 2시간 세션
+  setCookie(h, 'auth2', 'ok', { httpOnly:true, maxAge: 60*60*2 });
 
-  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: h });
+  return json({ ok:true }, 200, Object.fromEntries(h.entries()));
 }
