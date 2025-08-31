@@ -1,51 +1,44 @@
-export async function onRequest({ request, env }) {
-  const { LINES, SECRET_SALT = '' } = env;
-  const authedWall = /(?:^|;\s*)auth2=wall(?:;|$)/.test(request.headers.get('Cookie')||'');
-  if (!authedWall) {
-    return new Response(JSON.stringify({ ok:false, error:'forbidden' }), {
-      status: 403, headers: { 'Content-Type':'application/json' }
-    });
-  }
+const json=(x,s=200)=>new Response(JSON.stringify(x),{status:s,headers:{'Content-Type':'application/json'}});
 
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ ok:false, error:'Method Not Allowed' }), {
-      status:405, headers:{'Content-Type':'application/json'}
-    });
-  }
+function getCookie(req,name){
+  const c=req.headers.get('Cookie')||''; const m=c.match(new RegExp('(?:^|;\\s*)'+name+'=([^;]+)'));
+  return m?decodeURIComponent(m[1]):'';
+}
+const dec=(s)=>{ try{return JSON.parse(decodeURIComponent(escape(atob(s))))}catch{return null} };
+
+export async function onRequest({ request, env }){
+  const { LINES } = env;
+  const ck = request.headers.get('Cookie')||'';
+  if (!/(^|;\s*)auth2=wall(;|$)/.test(ck)) return json({ ok:false, error:'forbidden' },403);
+  if (request.method!=='POST') return json({ ok:false, error:'Method Not Allowed' },405);
 
   const body = await request.json().catch(()=>({}));
-  const text = String(body.text||'').slice(0,300);
+  const text = String(body.text||'').replace(/[\u200B-\u200D\uFEFF]/g,'').trim().slice(0,300);
 
-  // 요청자 식별키(하루 단위로 멱등 처리 예시)
-  const ip = request.headers.get('cf-connecting-ip') || request.headers.get('CF-Connecting-IP') || '0.0.0.0';
-  const idKey = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${SECRET_SALT}|${ip}|wall`));
-  const keyHex = [...new Uint8Array(idKey)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  const ticket = getCookie(request,'q2') || '';
+  if (!ticket) return json({ ok:false, error:'no_ticket' },401);
 
-  const existed = await LINES.get(`lw:${keyHex}`);
-  if (existed) {
-    return new Response(JSON.stringify({ ok:true, already:true }), {
-      status:200, headers:{'Content-Type':'application/json'}
-    });
-  }
+  // 멱등: 티켓당 1회
+  if (await LINES.get(`lw:byTicket:${ticket}`)) return json({ ok:true, already:true });
 
-  const idxRaw = await LINES.get('idx');
-  const idx = idxRaw ? JSON.parse(idxRaw) : [];
+  // r2 쿠키에서 step/cause 복원
+  const st = dec(getCookie(request,'r2')) || { step:0, cause:'사망' };
+
+  // 유언 저장
+  const idxRaw = await LINES.get('idx'); const idx = idxRaw?JSON.parse(idxRaw):[];
   const nextId = idx.length ? Math.max(...idx)+1 : 1;
-
-  const item = {
-    id: nextId,
-    ts: Date.now(),
-    step: 0, // 기록용(원하면 r2 decode해서 채워도 됨)
-    cause: '사망', // 프론트에선 별도로 표기
-    text: text || ''
-  };
-
+  const item = { id: nextId, ts: Date.now(), step: st.step||0, cause: st.cause||'사망', text: text||'…' };
   idx.push(nextId);
   await LINES.put('idx', JSON.stringify(idx));
-  await LINES.put(`c:${nextId}`, JSON.stringify(item));
-  await LINES.put(`lw:${keyHex}`, '1', { expirationTtl: 60*60*24*30 }); // 30일 중복 방지
+  await LINES.put(`l:${nextId}`, JSON.stringify(item));
+  await LINES.put('lastword:latest', JSON.stringify(item));
+  await LINES.put(`lw:byTicket:${ticket}`, '1', { expirationTtl: 60*60*24 });
 
-  return new Response(JSON.stringify({ ok:true, id: nextId }), {
-    status:200, headers:{'Content-Type':'application/json'}
-  });
+  // active 해제(다음 도전자 입장 가능)
+  const raw = await LINES.get('q:active'); const act = raw?JSON.parse(raw):null;
+  if (act && act.ticket === ticket) {
+    await LINES.delete('q:active');
+  }
+
+  return json({ ok:true, id: nextId });
 }
