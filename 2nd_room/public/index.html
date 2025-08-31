@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>끝없는 복도 — 입장</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Cinzel:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root{ --ink:#2b1b0e; --veil:rgba(255,255,255,.78) }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; display:grid; place-items:center;
+    font-family:'Noto Serif KR',serif; color:var(--ink);
+    background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;
+  }
+  .card{ width:min(520px,92vw); background:var(--veil); border-radius:14px; padding:22px 18px; }
+  h1{ font-family:'Cinzel',serif; text-align:center; margin:0 0 10px }
+  p{ margin:0 0 10px }
+  input,button{ width:100%; padding:12px 14px; font-size:16px }
+  input{ border:1px solid #c9b28a; border-radius:10px; background:#fffdf6 }
+  button{ margin-top:10px; border:0; border-radius:10px; background:#2b1b0e; color:#fff; cursor:pointer }
+  .note{ font-size:13px; opacity:.8 }
+  .err{ color:#7b2a2a; min-height:22px; margin-top:8px }
+</style>
+</head>
+<body>
+  <form class="card" id="gate" autocomplete="off">
+    <h1>끝없는 복도</h1>
+    <p>첫 번째 방을 탈출한 자만, 이 문턱을 넘을 수 있습니다.</p>
+    <p class="note">비밀 암호를 입력하거나, 티켓 코드를 붙여넣으세요.</p>
+    <input id="code" placeholder="암호 또는 티켓" required />
+    <button type="submit">입장</button>
+    <div class="err" id="err"></div>
+  </form>
+
+<script>
+const f = document.getElementById('gate');
+const codeEl = document.getElementById('code');
+const errEl = document.getElementById('err');
+f.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  errEl.textContent = '';
+  const code = codeEl.value.trim();
+  if(!code) return;
+  const r = await fetch('/api/login', {
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({ code })
+  });
+  if(r.status===204){ location.href = '/play/'; }
+  else{
+    const j = await r.json().catch(()=>({}));
+    errEl.textContent = j.error || '입장 실패';
+  }
+});
+</script>
+</body>
+</html>
