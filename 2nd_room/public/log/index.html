@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>끝없는 복도 – 방명록</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{ --ink:#2b1b0e; --veil:rgba(255,255,255,.84); --rule:#b89a6a }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100dvh; display:grid; place-items:center;
+    background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;
+    font-family:'Noto Serif KR',serif; color:var(--ink);
+  }
+  .wrap{ width:min(860px,92vw); background:var(--veil); border-radius:14px; padding:22px 18px }
+  h1{margin:0 0 8px}
+  .hint{margin:0 0 12px; color:#7b5a2c}
+  .grid{display:grid; grid-template-columns:1fr; gap:10px}
+  .card{border:1px solid var(--rule); background:#fffdf6; border-radius:12px; padding:14px}
+  .top{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px}
+  .by{font-weight:600}
+  .text{white-space:pre-wrap}
+  .pager{display:flex; gap:8px; justify-content:center; margin-top:14px}
+  .btn{padding:8px 12px; border:1px solid var(--rule); background:#fffdf6; border-radius:10px; cursor:pointer}
+  .admin{display:flex; gap:8px; justify-content:flex-end; align-items:center; margin-bottom:8px}
+  .danger{background:#812e2e; border-color:#5a2020; color:#fff}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>방명록</h1>
+    <p class="hint" id="hint">사망한 이들의 마지막 한 마디가 여기 기록됩니다.</p>
+
+    <div class="admin">
+      <input id="admintok" placeholder="운영자 비밀번호" style="padding:8px;border:1px solid #c9b28a;border-radius:8px">
+      <button class="btn" id="adminOn">관리자 인증</button>
+    </div>
+
+    <div id="list" class="grid"></div>
+    <div class="pager">
+      <button class="btn" id="prev">이전</button>
+      <span id="pageinfo" style="align-self:center"></span>
+      <button class="btn" id="next">다음</button>
+    </div>
+  </div>
+
+<script>
+let page = Math.max(1, parseInt(new URL(location.href).searchParams.get('p')||'1',10));
+let adminkey = '';
+const listEl = document.getElementById('list');
+const infoEl = document.getElementById('pageinfo');
+
+async function load(){
+  const r = await fetch(`/api/lines?page=${page}&limit=20`);
+  const j = await r.json().catch(()=>({items:[], page:1, totalPages:1}));
+  listEl.innerHTML = '';
+  (j.items||[]).forEach(item=>{
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML = `
+      <div class="top">
+        <div class="by">탈출자 ${item.id} · 단계 ${item.step} · ${new Date(item.ts).toLocaleString()}</div>
+        ${adminkey ? `<button class="btn danger" data-id="${item.id}">삭제</button>` : ''}
+      </div>
+      <div class="text">${escapeHtml(item.text || '(없음)')}</div>
+    `;
+    listEl.appendChild(el);
+  });
+  if(adminkey){
+    listEl.querySelectorAll('[data-id]').forEach(b=>{
+      b.addEventListener('click', ()=> del(parseInt(b.dataset.id,10)));
+    });
+  }
+  infoEl.textContent = `${j.page} / ${j.totalPages}`;
+}
+function escapeHtml(s){return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[m]));}
+
+document.getElementById('prev').onclick = ()=> { if(page>1){ page--; updateQs(); load(); } };
+document.getElementById('next').onclick = ()=> { page++; updateQs(); load(); };
+function updateQs(){ const u = new URL(location.href); u.searchParams.set('p', String(page)); history.replaceState(null,'',u); }
+
+document.getElementById('adminOn').onclick = ()=>{
+  const v = document.getElementById('admintok').value.trim();
+  if(!v) return alert('비밀번호 입력');
+  adminkey = v; load();
+};
+
+async function del(id){
+  if(!confirm(`탈출자 ${id}의 기록을 삭제할까요? (번호는 당겨집니다)`)) return;
+  const r = await fetch('/api/lines', {
+    method:'DELETE',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+adminkey},
+    body: JSON.stringify({ id })
+  });
+  if(r.ok){ alert('삭제됨'); load(); }
+  else{ alert('삭제 실패'); }
+}
+
+load();
+if(new URL(location.href).searchParams.get('new')==='1'){
+  document.getElementById('hint').textContent = '기록되었습니다. (새로고침하면 최신 목록이 반영됩니다)';
+}
+</script>
+</body>
+</html>
