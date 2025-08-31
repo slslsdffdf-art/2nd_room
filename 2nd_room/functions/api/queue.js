@@ -20,14 +20,16 @@ export async function onRequest({ request, env }){
 
   if (!ticket) return json({ error:'no_ticket' }, 401);
 
-  // active가 유언 타임아웃이면 기본 유언 생성하고 active 해제
+  // 유언 타임아웃 시 자동저장 & active 해제
   async function finalizeActiveIfTimedOut() {
     const raw = await LINES.get('q:active'); let act = raw?JSON.parse(raw):null;
     if (!act || !act.dead) return false;
     if (now() <= (act.lw_deadline||0)) return false;
 
+    // 이미 저장된 티켓이면 active만 삭제
     if (await LINES.get(`lw:byTicket:${act.ticket}`)) { await LINES.delete('q:active'); return true; }
 
+    // 기본 유언으로 자동 저장
     const idxRaw = await LINES.get('idx'); const idx = idxRaw?JSON.parse(idxRaw):[];
     const nextId = idx.length ? Math.max(...idx)+1 : 1;
     const item = {
@@ -44,7 +46,7 @@ export async function onRequest({ request, env }){
     return true;
   }
 
-  // active가 선택 제한시간을 넘기면: 자동 사망 → wall 부여 → 유언 제한 타임 시작
+  // 선택 제한 초과면 자동 사망(기존 원인 있으면 덮어쓰지 않음)
   async function autoKillIfSelectTimedOut() {
     const raw = await LINES.get('q:active'); let act = raw?JSON.parse(raw):null;
     if (!act || act.dead) return null;
@@ -54,14 +56,11 @@ export async function onRequest({ request, env }){
     }
     if (now() <= act.select_deadline) return null;
 
-    // 초과: 죽임 처리
     act.dead = true;
-    act.cause = '시간 초과';
+    act.cause = act.cause || '시간 초과';
     act.step = act.step || 0;
-    act.lw_deadline = now() + (parseInt(LASTWORDS_LIMIT_SEC,10)||45)*1000;
+    act.lw_deadline = now() + lwLimit*1000;
     await LINES.put('q:active', JSON.stringify(act));
-
-    // 해당 유저에게 wall 쿠키
     return act;
   }
 
@@ -70,6 +69,16 @@ export async function onRequest({ request, env }){
 
     let q = JSON.parse((await LINES.get('q:queue')) || '[]');
     let act = JSON.parse((await LINES.get('q:active')) || 'null');
+
+    // 내가 유언 자동저장까지 끝났으면 finished 응답
+    if (!act) {
+      const done = await LINES.get(`lw:byTicket:${ticket}`);
+      if (done) {
+        const H=new Headers();
+        setCookie(H,'auth2','wall',{ httpOnly:true, maxAge:60*60*24 });
+        return json({ state:'finished' }, 200, Object.fromEntries(H.entries()));
+      }
+    }
 
     // 하트비트 끊긴 active 30초 → 해제
     const stale = act && !act.dead && (now() - (act.updated||act.since||0) > 30000);
@@ -83,29 +92,36 @@ export async function onRequest({ request, env }){
       await LINES.put('q:active', JSON.stringify(act));
     }
 
-    // 선택 제한 초과 자동 사망 처리
+    // 선택 제한 초과 자동 사망
     const killed = await autoKillIfSelectTimedOut();
     if (killed && killed.ticket === ticket) {
       const H=new Headers();
       setCookie(H,'auth2','wall',{ httpOnly:true, maxAge:60*60*24 });
-      return json({ state:'dead_pending', remain_sec: Math.max(0, Math.floor((killed.lw_deadline - now())/1000)) }, 200, Object.fromEntries(H.entries()));
+      const remain = Math.max(0, Math.floor(((killed.lw_deadline||now()) - now())/1000));
+      return json(
+        { state:'dead_pending', remain_sec: remain, cause: killed.cause || '사망', step: killed.step||0 },
+        200,
+        Object.fromEntries(H.entries())
+      );
     }
 
     // 내 상태 응답
     const size = q.length + (act?1:0);
-    let headers = {};
 
     if (act && act.ticket===ticket && !act.dead) {
       const H=new Headers();
       setCookie(H,'auth2','ok',{ httpOnly:true, maxAge:60*60*2 });
-      headers = Object.fromEntries(H.entries());
       const remain = Math.max(0, Math.floor(((act.select_deadline||now()) - now())/1000));
-      return json({ state:'active', position:0, est_sec:0, select_remain_sec: remain, size }, 200, headers);
+      return json(
+        { state:'active', position:0, est_sec:0, select_remain_sec: remain, size },
+        200,
+        Object.fromEntries(H.entries())
+      );
     }
 
     if (act && act.ticket===ticket && act.dead) {
       const remain = Math.max(0, Math.floor(((act.lw_deadline||now()) - now())/1000));
-      return json({ state:'dead_pending', remain_sec: remain, size });
+      return json({ state:'dead_pending', remain_sec: remain, cause: act.cause || '사망', step: act.step||0, size });
     }
 
     const pos = q.indexOf(ticket);
@@ -141,4 +157,4 @@ export async function onRequest({ request, env }){
   }
 
   return json({ error:'Method Not Allowed' },405);
-}
+                                                   }
