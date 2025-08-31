@@ -1,16 +1,16 @@
-export async function onRequest(context) {
-  const { request, next } = context;
+export async function onRequest({ request, next }) {
   const url = new URL(request.url);
-  // 보호 대상: /play/ 및 게임 API (login 제외)
-  const needAuth = url.pathname.startsWith('/play') ||
-                   (url.pathname.startsWith('/api') && !url.pathname.startsWith('/api/login'));
 
-  if (!needAuth) return next();
+  // 보호할 경로
+  if (url.pathname.startsWith("/play")) {
+    const cookie = request.headers.get("Cookie") || "";
+    // login.js 와 동일하게 auth2 쿠키 체크
+    const authed = /(?:^|;\s*)auth2=ok(?:;|$)/.test(cookie);
 
-  const cookie = request.headers.get('Cookie') || '';
-  const ok = /r2sess=([A-Za-z0-9_\-\.]+)/.test(cookie); // 서명 검증은 API들에서 재확인
-  if (ok) return next();
+    if (!authed) {
+      return Response.redirect(`${url.origin}/`, 302);
+    }
+  }
 
-  // 세션 없으면 게이트로
-  return new Response(null, { status: 302, headers: { Location: '/' }});
+  return next();
 }
