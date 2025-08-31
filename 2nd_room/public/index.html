@@ -1,65 +1,42 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>끝없는 복도 – 입장</title>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>두 번째 방 – 입장</title>
 <style>
-  body{margin:0; padding:40px; background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat; color:#2b1b0e; font-family:'Noto Serif KR',serif;}
-  .card{max-width:540px;margin:8vh auto;background:rgba(255,255,255,.76);border-radius:12px;padding:26px 22px;}
-  h1{text-align:center;font-size:26px;margin:0 0 18px}
-  p{margin:6px 0 14px}
-  input{width:100%;padding:12px;border:1px solid #b89a6a;border-radius:6px;font-size:16px}
-  button{margin-top:12px;width:100%;padding:12px;font-size:18px;border:1px solid #b89a6a;border-radius:8px;background:#f7efe2;cursor:pointer}
-  .msg{min-height:22px;margin-top:8px;font-size:14px;color:#795548}
+  body{margin:0;padding:40px;background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;color:#2b1b0e;font-family:'Noto Serif KR',serif}
+  .card{max-width:520px;margin:10vh auto;background:rgba(255,255,255,.76);border-radius:12px;padding:24px 20px}
+  h1{text-align:center;margin:0 0 14px}
+  input{width:100%;padding:12px;border:1px solid #b89a6a;border-radius:6px}
+  button{margin-top:10px;width:100%;padding:12px;border:1px solid #b89a6a;border-radius:8px;background:#f7efe2;cursor:pointer}
+  .msg{min-height:20px;font-size:14px;color:#795548;margin-top:6px}
 </style>
 <script>
-  // 이미 사망자면(재접속) 방명록으로
-  if (document.cookie.includes('auth2=wall')) {
-    location.replace('/play/wall');
-  }
+  if (document.cookie.includes('auth2=wall')) location.replace('/play/wall');
 </script>
 </head>
 <body>
   <div class="card">
     <h1>두 번째 방 입구</h1>
-    <p>※ 본 게임 방탈출 전용 게이트입니다. 암호를 입력하세요.</p>
-    <form id="f" onsubmit="return false;">
+    <p>암호를 입력하면 로비로 이동합니다.</p>
+    <form id="f" onsubmit="return false">
       <input id="code" type="password" placeholder="암호 입력" autocomplete="off" />
       <button id="btn">입장</button>
       <div class="msg" id="msg"></div>
     </form>
   </div>
-
 <script>
-const f=document.getElementById('f');
-const code=document.getElementById('code');
-const msg=document.getElementById('msg');
-const btn=document.getElementById('btn');
-
-f.addEventListener('submit', async e=>{
+const code=document.getElementById('code'), btn=document.getElementById('btn'), msg=document.getElementById('msg');
+document.getElementById('f').addEventListener('submit', async e=>{
   e.preventDefault();
-  const v = code.value.trim();
-  if(!v){ msg.textContent='암호를 입력하세요.'; return; }
-  btn.disabled = true; msg.textContent='확인 중…';
+  const v=code.value.trim(); if(!v){msg.textContent='암호를 입력하세요.';return;}
+  btn.disabled=true; msg.textContent='확인 중…';
   try{
-    const r = await fetch('/api/login', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      credentials:'same-origin', // ★ 쿠키 저장
-      body: JSON.stringify({ code: v })
-    });
-    const d = await r.json().catch(()=>({}));
-    if (!r.ok || !d.ok) {
-      msg.textContent = '암호가 틀렸습니다.';
-      btn.disabled=false; return;
-    }
-    // 성공 → 게임으로
-    location.href='/play/';
-  }catch(err){
-    msg.textContent='네트워크 오류';
-    btn.disabled=false;
-  }
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:v})});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok && d.ok){ location.href = d.wall ? '/play/wall' : '/lobby.html'; }
+    else{ msg.textContent='암호가 틀렸습니다.'; btn.disabled=false; }
+  }catch{ msg.textContent='네트워크 오류'; btn.disabled=false; }
 });
 </script>
 </body>
