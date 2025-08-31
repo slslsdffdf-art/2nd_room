@@ -1,32 +1,38 @@
-// /, /index.html, /images/* 는 공개
-// /api/login 은 공개
-// 나머지(/play/*, 대부분의 /api/*)는 auth2=ok 쿠키 필요
+// /play/* 과 대부분의 /api/* 보호.
+// 죽은(락) 사용자는 /play/wall.html 로만 접근 가능.
 
-export async function onRequest(context) {
+function getCookie(req, name){
+  const c = req.headers.get('Cookie') || '';
+  const m = c.match(new RegExp('(?:^|;\\s*)'+name+'=([^;]+)'));
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+export async function onRequest(context){
   const { request, next } = context;
   const url = new URL(request.url);
   const p = url.pathname;
-  const cookies = request.headers.get('Cookie') || '';
-  const authed = /(?:^|;\s*)auth2=ok(?:;|$)/.test(cookies);
 
-  const isPublic =
+  // 공개 허용(게이트/배경/폰트/방명록 페이지 & API)
+  const allow =
     p === '/' ||
-    p === '/index.html' ||
+    p === '/play/wall.html' ||
     p.startsWith('/images/') ||
-    p === '/favicon.ico';
+    p === '/favicon.ico' ||
+    p.startsWith('/api/lines') ||
+    p.startsWith('/api/login');
 
-  if (isPublic) return next();
+  if (allow) return next();
 
-  if (p.startsWith('/api/')) {
-    if (p === '/api/login') return next();
-    if (!authed) return new Response('Unauthorized', { status: 401 });
-    return next();
+  const auth = getCookie(request, 'auth2'); // 'ok' | 'wall' | ''
+  if (!auth) {
+    return Response.redirect(`${url.origin}/`, 302);
   }
 
-  if (p.startsWith('/play')) {
-    if (!authed) return new Response(null, { status: 302, headers: { Location: '/' } });
-    return next();
+  // 락 유저는 어디로 가든 방명록만
+  if (auth === 'wall') {
+    return Response.redirect(`${url.origin}/play/wall.html`, 302);
   }
 
+  // auth === 'ok' → 통과
   return next();
 }
