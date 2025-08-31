@@ -1,34 +1,68 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>끝없는 복도</title>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
-  <style>
-    :root{ --ink:#2b1b0e; --rule:#b89a6a; }
-    *{ box-sizing:border-box }
-    body{
-      margin:0; padding:40px;
-      font-family:'Noto Serif KR',serif; line-height:1.65; color:var(--ink);
-      background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;
-    }
-    .wrap{ max-width:720px; margin:0 auto; background:rgba(255,255,255,.76); border-radius:12px; padding:26px 22px; }
-    h1{ text-align:center; font-size:26px; margin:0 0 12px }
-    .hint{ background:#fff7e9; border:1px solid var(--rule); border-radius:8px; padding:10px 12px; margin:6px 0 14px; }
-    .small{ font-size:13px; color:#7a5c24 }
-    .btn{ display:inline-block; width:100%; padding:12px 14px; margin:8px 0; text-align:center;
-          border:1px solid var(--rule); background:#f7efe2; cursor:pointer; border-radius:8px; font-size:18px; }
-    .btn:disabled{ opacity:.5; cursor:not-allowed }
-    .center{ text-align:center }
-    textarea{ width:100%; min-height:120px; resize:vertical; padding:10px; }
-    .status{ font-size:13px; color:#795548; margin-left:8px }
-    .sep{ height:1px; background:var(--rule); opacity:.5; margin:16px 0 }
-    .hidden{ display:none !important }
-  </style>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>끝없는 복도</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{ --ink:#1d130b; --rule:#b89a6a; --veil:rgba(0,0,0,.45); }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:40px;
+    font-family:'Noto Serif KR',serif; line-height:1.75; color:var(--ink);
+    background:url('/images/parchment-bg.jpg?v=2') center/cover fixed no-repeat;
+    position:relative;
+  }
+  /* 필름 그레인 + 비네트 */
+  body:before{
+    content:""; position:fixed; inset:0; pointer-events:none; opacity:.08; mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.7'/></svg>");
+    animation:grain 1s steps(2) infinite;
+  }
+  body:after{
+    content:""; position:fixed; inset:0; pointer-events:none;
+    box-shadow:inset 0 0 220px rgba(0,0,0,.55);
+  }
+  @keyframes grain{0%{transform:translate(0,0)}100%{transform:translate(-10px,10px)}}
+
+  .wrap{
+    max-width:760px; margin:0 auto; background:rgba(255,255,255,.84);
+    border-radius:14px; padding:26px 22px; border:1px solid rgba(0,0,0,.08);
+    backdrop-filter:saturate(110%) blur(1px);
+  }
+  h1{ text-align:center; font-size:28px; margin:0 0 10px; letter-spacing:.03em }
+  .hint{
+    background:linear-gradient(180deg,#fff8ea,#f7efe2); border:1px solid var(--rule);
+    border-radius:10px; padding:12px 14px; margin:10px 0 16px; position:relative; overflow:hidden;
+  }
+  .hint:after{
+    content:""; position:absolute; inset:-2px; border-radius:12px;
+    box-shadow:0 0 40px rgba(96, 24, 24, .08) inset;
+  }
+  .small{ font-size:14px; color:#6d553e; margin-bottom:6px }
+  .btn{
+    display:inline-block; width:100%; padding:14px 14px; margin:8px 0; text-align:center;
+    border:1px solid var(--rule); background:linear-gradient(180deg,#2a2a2a1a,#0000000e);
+    cursor:pointer; border-radius:10px; font-size:18px; transition:transform .04s ease, box-shadow .12s ease;
+  }
+  .btn:active{ transform:translateY(1px) scale(.998); filter:contrast(.98) }
+  .btn:disabled{ opacity:.5; cursor:not-allowed }
+  .center{ text-align:center }
+  .muted{ color:#6d553e; font-size:14px }
+  textarea{ width:100%; min-height:120px; resize:vertical; padding:10px; font-size:16px }
+  .status{ font-size:14px; color:#795548; margin-left:8px }
+  .sep{ height:1px; background:var(--rule); opacity:.5; margin:16px 0 }
+  .hidden{ display:none !important }
+  /* 미세 떨림 */
+  .shiver{ animation:shiver .35s linear 1 }
+  @keyframes shiver{ 0%,100%{transform:translate(0,0)} 20%{transform:translate(-1px,0)} 40%{transform:translate(1px,0)} 60%{transform:translate(-1px,0)} 80%{transform:translate(1px,0)} }
+  /* 암전 페이드 */
+  .fade-in{ animation:fadein .35s ease 1 }
+  @keyframes fadein{ from{opacity:0} to{opacity:1} }
+</style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="wrap fade-in">
     <h1>끝없는 복도</h1>
 
     <div id="hintBox" class="hint hidden">
@@ -36,9 +70,9 @@
       <div id="hintText">—</div>
     </div>
 
-    <p class="center" id="stepInfo">방 0</p>
+    <p class="center" id="stepInfo" style="font-size:18px">방 0</p>
     <div id="chooseBox">
-      <p class="center">앞/왼/오 중 하나를 선택하세요. (남은 시간 <span id="timer">–</span>)</p>
+      <p class="center muted">앞/왼/오 중 하나를 선택하세요. (남은 시간 <span id="timer">–</span>)</p>
       <button class="btn" id="btnL">왼쪽</button>
       <button class="btn" id="btnF">정면</button>
       <button class="btn" id="btnR">오른쪽</button>
@@ -53,7 +87,7 @@
     <!-- 사망 화면 -->
     <div id="deathBox" class="hidden">
       <p>사망 원인: <b><span id="cause"></span></b></p>
-      <p class="small">유언은 선택 사항입니다. <b id="limitInfo"></b> 내 입력이 없으면 기본 문구로 처리됩니다.</p>
+      <p class="muted">유언은 선택 사항입니다. <b id="limitInfo"></b> 내 입력이 없으면 기본 문구로 처리됩니다.</p>
       <textarea id="lastText" maxlength="300" placeholder="유언을 남기시겠습니까? (최대 300자)"></textarea>
       <div style="margin-top:8px;">
         <button class="btn" id="saveLWBtn">유언 저장</button>
@@ -62,144 +96,110 @@
     </div>
   </div>
 
-  <script>
-    const $ = (sel)=>document.querySelector(sel);
-    const btnL = $('#btnL'), btnF = $('#btnF'), btnR = $('#btnR');
-    const chooseBox = $('#chooseBox');
-    const aliveBox  = $('#aliveBox');
-    const deathBox  = $('#deathBox');
-    const causeEl   = $('#cause');
-    const stepInfo  = $('#stepInfo');
-    const timerEl   = $('#timer');
-    const saveBtn   = $('#saveLWBtn');
-    const saveStatus= $('#saveStatus');
-    const lastText  = $('#lastText');
-    const hintBox = $('#hintBox');
-    const hintText = $('#hintText');
-    const limitInfo = $('#limitInfo');
+<script>
+  const $ = (s)=>document.querySelector(s);
+  const btnL=$('#btnL'), btnF=$('#btnF'), btnR=$('#btnR');
+  const chooseBox=$('#chooseBox'), aliveBox=$('#aliveBox'), deathBox=$('#deathBox');
+  const causeEl=$('#cause'), stepInfo=$('#stepInfo'), timerEl=$('#timer');
+  const saveBtn=$('#saveLWBtn'), saveStatus=$('#saveStatus'), lastText=$('#lastText');
+  const hintBox=$('#hintBox'), hintText=$('#hintText'), limitInfo=$('#limitInfo');
 
-    let hbTimer=null, selectTimer=null, remain=0, lwRemain=0, lwTick=null, lwLimit=45;
+  let hbTimer=null, selectTick=null, remain=0, lwLimit=45;
 
-    function startHB(){
-      stopHB();
-      hbTimer = setInterval(()=>fetch('/api/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hb:true})}), 10000);
-    }
-    function stopHB(){ if(hbTimer){ clearInterval(hbTimer); hbTimer=null; } }
+  function shiver(el){ el.classList.remove('shiver'); void el.offsetWidth; el.classList.add('shiver'); }
 
-    function setTimer(s){
-      remain = s;
-      timerEl.textContent = remain;
-      clearInterval(selectTimer);
-      selectTimer = setInterval(()=>{
-        remain--;
-        timerEl.textContent = remain;
-        if(remain<=0){ clearInterval(selectTimer); showDeath('시간 초과'); }
-      },1000);
-    }
+  function startHB(){
+    stopHB();
+    hbTimer=setInterval(()=>fetch('/api/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hb:true})}),10000);
+  }
+  function stopHB(){ if(hbTimer){ clearInterval(hbTimer); hbTimer=null; } }
 
-    async function init(){
-      const r = await fetch('/api/choose?init=1');
-      if(!r.ok){ alert('세션이 만료되었습니다. 로비로 이동합니다.'); location.href='/lobby.html'; return; }
-      const d = await r.json();
-      stepInfo.textContent = '방 ' + (d.step||0);
-      if (d.lastHint && d.lastHint.text) {
-        hintText.textContent = d.lastHint.text;
-        hintBox.classList.remove('hidden');
+  function setLocalTimer(s){
+    remain = s; timerEl.textContent = remain;
+    clearInterval(selectTick);
+    selectTick = setInterval(()=>{
+      remain--; timerEl.textContent = remain;
+      if(remain<=0){ clearInterval(selectTick); showDeath('시간 초과'); }
+    },1000);
+  }
+
+  async function syncTimerFromServer(){
+    try{
+      const r=await fetch('/api/queue'); const d=await r.json();
+      if (d.state==='active' && typeof d.select_remain_sec==='number') {
+        setLocalTimer(Math.max(0, d.select_remain_sec|0));
+      } else if (d.state==='dead_pending') {
+        // 이미 서버에서 죽음 처리됨 → 유언 화면으로
+        showDeath('시간 초과');
+        limitInfo.textContent = `${Math.max(0,d.remain_sec|0)}초`;
+      } else if (d.state==='waiting') {
+        location.href='/lobby.html';
       }
-      lwLimit = d.lw_limit_sec || 45;
-      limitInfo.textContent = `${lwLimit}초`;
-      setTimer(90);
-      startHB();
-    }
+    }catch{}
+  }
 
-    function disableChoice(v){ [btnL,btnF,btnR].forEach(b=>b.disabled=v); }
+  async function init(){
+    // 마지막 유언(문구) + 유언 제한값
+    const r = await fetch('/api/choose?init=1');
+    if (!r.ok){ alert('세션 만료. 로비로 이동'); location.href='/lobby.html'; return; }
+    const d = await r.json();
+    stepInfo.textContent = '방 ' + (d.step||0);
+    if (d.lastHint && d.lastHint.text){ hintText.textContent = d.lastHint.text; hintBox.classList.remove('hidden'); }
+    lwLimit = d.lw_limit_sec || 45; limitInfo.textContent = `${lwLimit}초`;
+    startHB();
+    await syncTimerFromServer(); // 서버 기준 남은시간으로 시작
+    setInterval(syncTimerFromServer, 5000); // 주기적 동기화(새로고침 방지)
+  }
 
-    async function choose(dir){
-      disableChoice(true);
-      try{
-        const r = await fetch('/api/choose', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ dir })
-        });
-        const d = await r.json().catch(()=>({}));
-        if(!r.ok){ alert(d.error||'오류'); disableChoice(false); return; }
+  function disableChoice(v){ [btnL,btnF,btnR].forEach(b=>b.disabled=v); }
 
-        if(d.result === 'advance'){
-          clearInterval(selectTimer);
-          stepInfo.textContent = '방 ' + d.step;
-          chooseBox.classList.add('hidden');
-          aliveBox.classList.remove('hidden');
-        }else if(d.result === 'dead'){
-          clearInterval(selectTimer);
-          stopHB();
-          showDeath(d.cause || '알 수 없음');
-        }else{
-          alert('알 수 없는 응답');
-          disableChoice(false);
-        }
-      }catch(e){
-        alert('네트워크 오류');
-        disableChoice(false);
+  async function choose(dir){
+    disableChoice(true); shiver(chooseBox);
+    try{
+      const r=await fetch('/api/choose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dir})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok){ alert(d.error||'오류'); disableChoice(false); return; }
+
+      if(d.result==='advance'){
+        clearInterval(selectTick);
+        stepInfo.textContent='방 '+d.step;
+        chooseBox.classList.add('hidden'); aliveBox.classList.remove('hidden');
+      }else if(d.result==='dead'){
+        clearInterval(selectTick); stopHB();
+        showDeath(d.cause||'알 수 없음');
+      }else{
+        alert('알 수 없는 응답'); disableChoice(false);
       }
-    }
+    }catch{ alert('네트워크 오류'); disableChoice(false); }
+  }
 
-    function showDeath(cause){
-      causeEl.textContent = cause;
-      chooseBox.classList.add('hidden');
-      aliveBox.classList.add('hidden');
-      deathBox.classList.remove('hidden');
+  function showDeath(cause){
+    causeEl.textContent = cause;
+    chooseBox.classList.add('hidden'); aliveBox.classList.add('hidden'); deathBox.classList.remove('hidden');
+  }
 
-      // 유언 타이머
-      lwRemain = lwLimit;
-      lwTick = setInterval(()=>{
-        lwRemain--;
-        limitInfo.textContent = `${lwRemain}초`;
-        if(lwRemain<=0){
-          clearInterval(lwTick);
-          saveBtn.disabled = true;
-          lastText.disabled = true;
-          saveStatus.textContent = '시간 초과 (기본 문구 처리됩니다)';
-        }
-      },1000);
-    }
+  $('#btnNext').onclick=()=>{ aliveBox.classList.add('hidden'); chooseBox.classList.remove('hidden'); disableChoice(false); syncTimerFromServer(); };
+  btnL.onclick=()=>choose('L'); btnF.onclick=()=>choose('F'); btnR.onclick=()=>choose('R');
 
-    $('#btnNext').addEventListener('click', ()=>{
-      aliveBox.classList.add('hidden');
-      chooseBox.classList.remove('hidden');
-      disableChoice(false);
-      setTimer(90);
-    });
-    btnL.onclick = ()=>choose('L');
-    btnF.onclick = ()=>choose('F');
-    btnR.onclick = ()=>choose('R');
-
-    async function submitLastWords(){
-      if (saveBtn.disabled) return;
-      saveBtn.disabled = true;
-      saveStatus.textContent = '저장중…';
-      try{
-        const r = await fetch('/api/lastwords', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ text: lastText.value.trim() })
-        });
-        const d = await r.json().catch(()=>({}));
-        if(r.ok && d.ok){
-          saveStatus.textContent = d.already ? '이미 저장됨' : '저장 완료';
-          lastText.disabled = true;
-          // 서버가 active 해제 -> 다음 도전자 자동 입장
-        }else{
-          saveStatus.textContent = d.error || '저장 실패';
-          saveBtn.disabled = false;
-        }
-      }catch(e){
-        saveStatus.textContent = '네트워크 오류';
-        saveBtn.disabled = false;
+  async function submitLastWords(){
+    if (saveBtn.disabled) return;
+    saveBtn.disabled=true; saveStatus.textContent='저장중…';
+    try{
+      const r=await fetch('/api/lastwords',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:lastText.value.trim()})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok && d.ok){
+        saveStatus.textContent = d.already ? '이미 저장됨' : '저장 완료';
+        lastText.disabled=true;
+        // ✅ 저장 성공 즉시 방명록으로
+        setTimeout(()=>{ location.href='/play/wall'; }, 300);
+      }else{
+        saveStatus.textContent=d.error||'저장 실패'; saveBtn.disabled=false;
       }
-    }
-    saveBtn.addEventListener('click', submitLastWords);
+    }catch{ saveStatus.textContent='네트워크 오류'; saveBtn.disabled=false; }
+  }
+  saveBtn.onclick=submitLastWords;
 
-    init();
-  </script>
+  init();
+</script>
 </body>
 </html>
