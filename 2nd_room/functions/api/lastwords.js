@@ -1,29 +1,31 @@
-export async function onRequestPost({ request, env }) {
-  const { ROOM2_LINES } = env;
-  if(!ROOM2_LINES) return json({ error:'NO_KV' }, 500);
+export async function onRequestPost({ request/*, env*/ }) {
+  const c = request.headers.get('Cookie') || '';
+  const r2 = (c.match(/(?:^|;\s*)r2=([^;]+)/) || [])[1];
+  if (!r2) {
+    return new Response(JSON.stringify({ error:'no session' }), {
+      status:401, headers:{'Content-Type':'application/json'}
+    });
+  }
+  let s=null; try{ s = JSON.parse(atob(decodeURIComponent(r2))); }catch{}
+  if (!s || s.alive) {
+    return new Response(JSON.stringify({ error:'not_dead' }), {
+      status:400, headers:{'Content-Type':'application/json'}
+    });
+  }
 
-  // (간단 세션 체크)
-  const cookie = request.headers.get('Cookie')||'';
-  if(!/r2sess=/.test(cookie)) return json({ error:'NO_SESSION' }, 401);
+  const body = await request.json().catch(()=>({}));
+  const text = (body.text || '').toString().replace(/\s{3,}/g,' ').trim().slice(0, 200);
+  // TODO: KV 같은 곳에 실제 저장 (env.LINES.put 등)
+  // 여기서는 성공만 반환
+  return new Response(JSON.stringify({ ok:true }), {
+    status:200, headers:{'Content-Type':'application/json'}
+  });
+}
 
-  const data = await request.json().catch(()=> ({}));
-  let text = String(data.text||'').replace(/[\u200B-\u200D\uFEFF]/g,'').trim();
-  if (text.length > 140) text = text.slice(0, 140);
-
-  // 자동 로그 + 유언 기록 (데모 키)
-  const id = Date.now();
-  const item = {
-    id, ts: Date.now(),
-    text: text || '', // 빈 유언 허용
-  };
-  await ROOM2_LINES.put('l:'+id, JSON.stringify(item));
-  const idx = JSON.parse(await ROOM2_LINES.get('idx') || '[]');
-  idx.push(id);
-  await ROOM2_LINES.put('idx', JSON.stringify(idx));
-
-  return json({ ok:true });
-
-  function json(x, s=200){
-    return new Response(JSON.stringify(x), { status:s, headers:{'Content-Type':'application/json'}});
+export async function onRequest({ request }) {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error:'Method Not Allowed' }), {
+      status:405, headers:{'Content-Type':'application/json'}
+    });
   }
 }
