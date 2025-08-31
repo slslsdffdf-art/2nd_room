@@ -1,19 +1,25 @@
 export async function onRequest({ request, next }) {
-  const url = new URL(request.url);
-  const path = url.pathname;
+  try {
+    const { pathname } = new URL(request.url);
 
-  // 보호 대상
-  const protect =
-    path.startsWith('/play') ||
-    path.startsWith('/api/choose') ||
-    path.startsWith('/api/lastwords');
+    // API 중 게이트/초기화/조회는 누구나 접근 (login, choose?init=1, lines GET)
+    if (
+      pathname.startsWith('/api/login') ||
+      (pathname.startsWith('/api/choose') && request.method === 'GET') ||
+      (pathname.startsWith('/api/lines') && request.method === 'GET')
+    ) {
+      return await next();
+    }
 
-  if (!protect) return next(); // 공개 자원은 통과
+    // 그 외 /play, POST choose/lastwords 등은 세션 필요
+    const authed = /(?:^|;\s*)auth2=ok(?:;|$)/.test(request.headers.get('Cookie')||'');
+    if (!authed) {
+      return new Response('Unauthorized', { status: 401 });
+    }
 
-  const cookie = request.headers.get('Cookie') || '';
-  const authed = /(?:^|;\s*)auth2=ok(?:;|$)/.test(cookie);
-  if (!authed) {
-    return Response.redirect(`${url.origin}/?err=session`, 302);
+    return await next();
+  } catch (e) {
+    console.error('middleware error:', e && e.stack || e);
+    return new Response('Internal Error (middleware)', { status: 500 });
   }
-  return next();
 }
