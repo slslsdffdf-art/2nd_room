@@ -8,7 +8,8 @@
   :root{ --ink:#1d130b; --rule:#b89a6a; --veil:rgba(0,0,0,.45); }
   *{box-sizing:border-box}
   body{ margin:0; padding:40px; font-family:'Noto Serif KR',serif; line-height:1.75; color:var(--ink);
-    background:url('/play/css/parchment-bg.jpg?v=3') center/cover fixed no-repeat; position:relative; }
+    /* ✅ 이미지 경로 고정 */
+    background:url('/play/css/images/parchment-bg.jpg?v=3') center/cover fixed no-repeat; position:relative; }
   body:after{ content:""; position:fixed; inset:0; pointer-events:none; box-shadow:inset 0 0 220px rgba(0,0,0,.55); }
   .vignette-on:after{ box-shadow:inset 0 0 260px rgba(0,0,0,.65); }
   .wrap{ max-width:760px; margin:0 auto; background:rgba(255,255,255,.84); border-radius:14px; padding:26px 22px; border:1px solid rgba(0,0,0,.08) }
@@ -60,11 +61,12 @@
   </div>
 
 <script>
-window.BGM_SRC = '/play/css/gameplay-theme.mp3';
-/* 공통 BGM 부트스트랩 */
+/* ✅ 본게임 BGM 경로 고정 */
+window.BGM_SRC = '/play/css/bgm/gameplay-theme.mp3';
+/* 공통 BGM 부트스트랩 (축약판) */
 (function(){const s={unlocked:false,ctx:null,el:null,trying:false};function m(src){const a=document.createElement('audio');a.id='bgm';a.src=src;a.loop=true;a.preload='auto';a.playsInline=true;a.crossOrigin='anonymous';a.volume=0.5;document.body.appendChild(a);return a;}async function u(){try{if(s.ctx&&s.ctx.state==='running')return;s.ctx=s.ctx||new (window.AudioContext||window.webkitAudioContext)();if(s.ctx.state!=='running')await s.ctx.resume();const o=s.ctx.createOscillator(),g=s.ctx.createGain();g.gain.value=0.0001;o.connect(g).connect(s.ctx.destination);o.start();o.stop(s.ctx.currentTime+0.03);}catch{}}async function p(){if(s.trying)return;s.trying=true;try{if(!s.el)s.el=m(window.BGM_SRC);await u();await s.el.play();s.unlocked=true;h();}catch(e){q();}finally{s.trying=false;}}function O(){p();['pointerdown','keydown','touchstart'].forEach(t=>document.removeEventListener(t,O));}['pointerdown','keydown','touchstart'].forEach(t=>document.addEventListener(t,O,{once:true}));setTimeout(()=>{if(!s.unlocked)p();},1500);document.addEventListener('visibilitychange',()=>{if(!s.el)return; if(document.hidden)s.el.pause(); else if(s.unlocked)s.el.play().catch(()=>{});});let v=null;function q(){if(v)return;v=document.createElement('div');v.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:9999;color:#fff';v.innerHTML='<div style="background:#222;border:1px solid #555;padding:16px 18px;border-radius:12px;text-align:center;max-width:320px"><div style="font-size:16px;margin-bottom:8px">🔊 브금 허용</div><div style="font-size:13px;opacity:.9;margin-bottom:12px">한 번 눌러서 소리를 켭니다</div><button id="bgmAllow" style="padding:8px 12px;border-radius:10px;border:1px solid #777;background:#333;color:#fff;cursor:pointer">소리 켜기</button></div>';document.body.appendChild(v);v.querySelector('#bgmAllow').addEventListener('click',p);}function h(){if(!v)return;v.remove();v=null;}window.switchBgm=function(n){if(!s.el)s.el=m(window.BGM_SRC);if(s.el.src.endsWith(n))return;s.el.pause();s.el.src=n;s.el.currentTime=0;if(s.unlocked)s.el.play().catch(()=>{q();});};})();
 
-/* 본게임 로직 */
+/* 본게임 로직 (중략 없는 전문) */
 const $ = (s)=>document.querySelector(s);
 const btnL=$('#btnL'), btnF=$('#btnF'), btnR=$('#btnR');
 const chooseBox=$('#chooseBox'), aliveBox=$('#aliveBox'), deathBox=$('#deathBox');
@@ -84,13 +86,12 @@ async function syncFromServer(){
   try{
     const r=await fetch('/api/queue'); const d=await r.json();
     if (d.state==='active'){
-      // gameplay 유지
       if (typeof d.select_remain_sec==='number'){ const srvDeadline=Date.now()+Math.max(0,d.select_remain_sec|0)*1000; if(!selectDeadline||srvDeadline<selectDeadline){ selectDeadline=srvDeadline; startSelectTicker(); } }
     } else if (d.state==='dead_pending'){
       if (!deathShown) { showDeath(d.cause||'사망'); deathShown=true; }
       if (typeof d.remain_sec==='number') limitInfo.textContent = `${Math.max(0,d.remain_sec|0)}초`;
-      // 사망 BGM
-      switchBgm('/play/css/death-theme.mp3'); document.body.classList.add('vignette-on');
+      /* ✅ 사망 BGM 경로 고정 */
+      switchBgm('/play/css/bgm/death-theme.mp3'); document.body.classList.add('vignette-on');
     } else if (d.state==='finished'){
       location.replace('/play/wall.html');
     } else if (d.state==='waiting'){
@@ -118,10 +119,10 @@ async function choose(dir){
     if(!r.ok){ alert(d.error||'오류'); disableChoice(false); return; }
     if(d.result==='advance'){
       stepInfo.textContent='방 '+d.step; chooseBox.classList.add('hidden'); aliveBox.classList.remove('hidden'); stopSelectTicker();
-      switchBgm('/play/css/gameplay-theme.mp3');
+      switchBgm('/play/css/bgm/gameplay-theme.mp3');
     }else if(d.result==='dead'){
       stopHB(); stopSelectTicker(); showDeath(d.cause||'알 수 없음'); deathShown=true;
-      switchBgm('/play/css/death-theme.mp3'); document.body.classList.add('vignette-on');
+      switchBgm('/play/css/bgm/death-theme.mp3'); document.body.classList.add('vignette-on');
     }else{ alert('알 수 없는 응답'); disableChoice(false); }
   }catch{ alert('네트워크 오류'); disableChoice(false); }
 }
