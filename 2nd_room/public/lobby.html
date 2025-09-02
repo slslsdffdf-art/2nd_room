@@ -2,50 +2,80 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>로비 – 대기열</title>
+<title>대기열</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  body{margin:0;padding:40px;background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;color:#2b1b0e;font-family:'Noto Serif KR',serif}
-  .card{max-width:560px;margin:10vh auto;background:rgba(255,255,255,.76);border-radius:12px;padding:24px 20px}
-  h1{text-align:center;margin:0 0 10px}
-  .num{font-size:28px;text-align:center;margin:8px 0}
-  .small{color:#795548;text-align:center}
-  .btn{display:block;margin:16px auto 0;padding:10px 14px;border:1px solid #b89a6a;border-radius:8px;background:#f7efe2;cursor:pointer}
+  :root{ --ink:#1d130b; --rule:#b89a6a; }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:40px;
+    font-family:'Noto Serif KR',serif; line-height:1.75; color:var(--ink);
+    background:url('/play/css/parchment-bg.jpg?v=3') center/cover fixed no-repeat;
+  }
+  .wrap{ max-width:720px; margin:0 auto; background:rgba(255,255,255,.84); border-radius:14px; padding:28px 22px; border:1px solid rgba(0,0,0,.08) }
+  h1{ margin:0 0 10px; text-align:center; font-size:28px }
+  .box{ background:linear-gradient(180deg,#fff8ea,#f7efe2); border:1px solid var(--rule); border-radius:10px; padding:14px 16px; }
+  .center{text-align:center}.muted{color:#6d553e}
+  .btn{ display:inline-block; padding:10px 14px; border:1px solid var(--rule); border-radius:10px; background:#0000000e; cursor:pointer }
 </style>
-<script>
-  if (document.cookie.includes('auth2=wall')) location.replace('/play/wall');
-  if (document.cookie.includes('auth2=ok')) location.replace('/play/');
-</script>
 </head>
 <body>
-  <div class="card">
+  <div class="wrap">
     <h1>대기열</h1>
-    <div class="num">내 위치: <span id="pos">-</span></div>
-    <p class="small">예상 대기시간: <span id="eta">계산 중…</span></p>
-    <button class="btn" id="leaveBtn">대기 취소</button>
+    <div class="box">
+      <p class="center">현재 대기 인원: <b id="size">–</b></p>
+      <p class="center">내 순번: <b id="pos">–</b></p>
+      <p class="center">예상 대기: <b id="eta">–</b></p>
+      <p class="center muted" style="margin-top:8px">입장 가능 시 자동으로 게임으로 이동합니다.</p>
+      <p class="center" style="margin-top:10px"><button id="leaveBtn" class="btn">대기 취소</button></p>
+    </div>
   </div>
+
+  <!-- 로비 BGM -->
+  <audio id="bgm" src="/play/css/lobby-theme.mp3" loop preload="auto"></audio>
+
 <script>
-const pos=document.getElementById('pos'), eta=document.getElementById('eta');
-const leaveBtn=document.getElementById('leaveBtn');
-function fmt(sec){ sec=parseInt(sec||0,10); const m=Math.floor(sec/60), s=sec%60; return `${m}분 ${s.toString().padStart(2,'0')}초`; }
+const bgm=document.getElementById('bgm');
+function enableAudioOnce(){ bgm.play().catch(()=>{}); document.removeEventListener('pointerdown', enableAudioOnce); }
+document.addEventListener('pointerdown', enableAudioOnce, { once:true });
 
-async function tick(){
-  try{
-    const r=await fetch('/api/queue'); const d=await r.json();
-    if(d.state==='active' || d.state==='ready'){ location.replace('/play/'); return; }
-    if(d.state==='waiting'){
-      pos.textContent = d.position || 1;
-      eta.textContent = fmt(d.est_sec);
-    }else{
-      eta.textContent = '대기 정보 없음';
-    }
-  }catch{}
+const $=(s)=>document.querySelector(s);
+const sizeEl=$('#size'), posEl=$('#pos'), etaEl=$('#eta'), leaveBtn=$('#leaveBtn');
+
+function fmtETA(sec){
+  sec=Math.max(0,sec|0);
+  const m=Math.floor(sec/60), s=sec%60;
+  return m? `${m}분 ${s}초` : `${s}초`;
 }
-setInterval(tick, 2000); tick();
 
-leaveBtn.onclick = async ()=>{
-  if(!confirm('대기열에서 나가시겠습니까?')) return;
-  await fetch('/api/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({leave:true})});
-  location.href='/';
+async function poll(){
+  try{
+    const r=await fetch('/api/queue',{cache:'no-store'});
+    if(r.status===401){ // 티켓 없음
+      location.href='/'; return;
+    }
+    const d=await r.json();
+    if(d.state==='active'){ location.replace('/play/index.html'); return; }
+    if(d.state==='dead_pending'){ location.replace('/play/index.html'); return; }
+    if(d.state==='finished'){ location.replace('/play/wall.html'); return; }
+    if(d.state==='waiting'){
+      sizeEl.textContent = d.size ?? '–';
+      posEl.textContent = d.position ?? '–';
+      etaEl.textContent = d.est_sec!=null ? fmtETA(d.est_sec) : '–';
+    }else{
+      // 알 수 없는 상태는 게임으로
+      location.replace('/play/index.html');
+    }
+  }catch(e){}
+}
+setInterval(poll, 3000);
+poll();
+
+leaveBtn.onclick=async ()=>{
+  try{
+    const r=await fetch('/api/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({leave:true})});
+    if(r.ok){ location.href='/'; }
+  }catch(e){ location.href='/'; }
 };
 </script>
 </body>
