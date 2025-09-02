@@ -1,40 +1,59 @@
-const json = (x,s=200,h={})=>new Response(JSON.stringify(x),{status:s,headers:{'Content-Type':'application/json',...h}});
+const json=(x,s=200,h={})=>new Response(JSON.stringify(x),{
+  status:s,
+  headers:{ 'Content-Type':'application/json','Cache-Control':'no-store', ...h }
+});
 
-function setCookie(H,name,value,opts={}){
-  const p=[`${name}=${encodeURIComponent(value)}`,'Path=/','SameSite=Lax','Secure',
-    opts.httpOnly?'HttpOnly':'',opts.maxAge?`Max-Age=${opts.maxAge}`:''].filter(Boolean).join('; ');
-  H.append('Set-Cookie', p);
+function normPw(x){
+  return (x ?? '')
+    .toString()
+    .trim()
+    .normalize('NFKC'); // 전각/호환문자 정규화
 }
-function randTicket(n=16){
-  const a=new Uint8Array(n); crypto.getRandomValues(a);
-  return [...a].map(b=>b.toString(16).padStart(2,'0')).join('');
+
+function isHTTPS(request){
+  try { return new URL(request.url).protocol === 'https:'; } catch { return false; }
+}
+
+function setCookie(H,name,value,{ maxAge, httpOnly=true, secure }={}){
+  const parts = [
+    `${name}=${encodeURIComponent(value)}`,
+    'Path=/',
+    'SameSite=Lax',
+  ];
+  if (secure) parts.push('Secure');        // HTTPS에서만
+  if (httpOnly) parts.push('HttpOnly');
+  if (maxAge) parts.push(`Max-Age=${maxAge}`);
+  H.append('Set-Cookie', parts.join('; '));
 }
 
 export async function onRequest({ request, env }){
-  if (request.method!=='POST') return json({error:'Method Not Allowed'},405);
-  const { PASSWORD='', LINES } = env;
+  if (request.method !== 'POST') return json({ error:'Method Not Allowed' },405);
+
   const body = await request.json().catch(()=>({}));
-  const code = String(body.code||'').trim();
-  const ck = request.headers.get('Cookie')||'';
+  const input = normPw(body.pw);
+  const target = normPw(env.GATE_PASSWORD || env.OWNER_PASSWORD || '');
 
-  if (/(^|;\s*)auth2=wall(;|$)/.test(ck)) return json({ ok:true, wall:true });
+  // 간단한 백오프(무차별 대입 완화)
+  const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
+  const k = `badpw:${ip}`;
+  const nRaw = await env.LINES.get(k);
+  const n = nRaw ? parseInt(nRaw,10) || 0 : 0;
+  if (n >= 8) return json({ error:'too_many_attempts' }, 429);
 
-  if (!code || code !== PASSWORD) return json({ error:'bad_password' },401);
+  if (!target) return json({ error:'server_not_configured' }, 500);
 
-  // 티켓 발급(기존 q2 유지)
-  const m = (ck.match(/(?:^|;\s*)q2=([^;]+)/)||[])[1];
-  const ticket = m ? decodeURIComponent(m) : randTicket();
-
-  // 큐 등록
-  const mapKey = `q:map:${ticket}`;
-  const has = await LINES.get(mapKey);
-  if (!has) {
-    await LINES.put(mapKey, JSON.stringify({ ticket, joined: Date.now() }), { expirationTtl: 60*60*6 });
-    const qRaw = await LINES.get('q:queue'); const q = qRaw?JSON.parse(qRaw):[];
-    if (!q.includes(ticket)) { q.push(ticket); await LINES.put('q:queue', JSON.stringify(q)); }
+  if (input !== target) {
+    await env.LINES.put(k, String(n+1), { expirationTtl: 300 }); // 5분
+    return json({ error:'bad_passwords' }, 401);
   }
 
+  // 성공: 실패 카운터 클리어
+  await env.LINES.delete(k);
+
   const H = new Headers();
-  setCookie(H,'q2', ticket, { httpOnly:true, maxAge:60*60*6 });
-  return json({ ok:true, lobby:true }, 200, Object.fromEntries(H.entries()));
+  // ⚠ 로컬(HTTP)에서는 Secure 미설정, HTTPS 배포에서는 Secure 설정
+  const secure = isHTTPS(request);
+  setCookie(H, 'auth', 'ok', { maxAge: 60*60*12, httpOnly: true, secure }); // 12h
+
+  return json({ ok:true }, 200, Object.fromEntries(H.entries()));
 }
