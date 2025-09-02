@@ -10,41 +10,24 @@
   body{
     margin:0; padding:40px;
     font-family:'Noto Serif KR',serif; line-height:1.75; color:var(--ink);
-    background:url('/images/parchment-bg.jpg?v=2') center/cover fixed no-repeat;
+    /* ⬇⬇ 배경 이미지 경로: /play/css/ 로 변경 */
+    background:url('/play/css/parchment-bg.jpg?v=3') center/cover fixed no-repeat;
     position:relative;
   }
-  /* 필름 그레인 + 비네트 */
   body:before{
     content:""; position:fixed; inset:0; pointer-events:none; opacity:.08; mix-blend-mode:multiply;
     background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.7'/></svg>");
     animation:grain 1s steps(2) infinite;
   }
-  body:after{
-    content:""; position:fixed; inset:0; pointer-events:none;
-    box-shadow:inset 0 0 220px rgba(0,0,0,.55);
-  }
+  body:after{ content:""; position:fixed; inset:0; pointer-events:none; box-shadow:inset 0 0 220px rgba(0,0,0,.55); }
   @keyframes grain{0%{transform:translate(0,0)}100%{transform:translate(-10px,10px)}}
 
-  .wrap{
-    max-width:760px; margin:0 auto; background:rgba(255,255,255,.84);
-    border-radius:14px; padding:26px 22px; border:1px solid rgba(0,0,0,.08);
-    backdrop-filter:saturate(110%) blur(1px);
-  }
+  .wrap{ max-width:760px; margin:0 auto; background:rgba(255,255,255,.84); border-radius:14px; padding:26px 22px; border:1px solid rgba(0,0,0,.08); backdrop-filter:saturate(110%) blur(1px); }
   h1{ text-align:center; font-size:28px; margin:0 0 10px; letter-spacing:.03em }
-  .hint{
-    background:linear-gradient(180deg,#fff8ea,#f7efe2); border:1px solid var(--rule);
-    border-radius:10px; padding:12px 14px; margin:10px 0 16px; position:relative; overflow:hidden;
-  }
-  .hint:after{
-    content:""; position:absolute; inset:-2px; border-radius:12px;
-    box-shadow:0 0 40px rgba(96, 24, 24, .08) inset;
-  }
+  .hint{ background:linear-gradient(180deg,#fff8ea,#f7efe2); border:1px solid var(--rule); border-radius:10px; padding:12px 14px; margin:10px 0 16px; position:relative; overflow:hidden; }
+  .hint:after{ content:""; position:absolute; inset:-2px; border-radius:12px; box-shadow:0 0 40px rgba(96, 24, 24, .08) inset; }
   .small{ font-size:14px; color:#6d553e; margin-bottom:6px }
-  .btn{
-    display:inline-block; width:100%; padding:14px 14px; margin:8px 0; text-align:center;
-    border:1px solid var(--rule); background:linear-gradient(180deg,#2a2a2a1a,#0000000e);
-    cursor:pointer; border-radius:10px; font-size:18px; transition:transform .04s ease, box-shadow .12s ease;
-  }
+  .btn{ display:inline-block; width:100%; padding:14px 14px; margin:8px 0; text-align:center; border:1px solid var(--rule); background:linear-gradient(180deg,#2a2a2a1a,#0000000e); cursor:pointer; border-radius:10px; font-size:18px; transition:transform .04s ease, box-shadow .12s ease; }
   .btn:active{ transform:translateY(1px) scale(.998); filter:contrast(.98) }
   .btn:disabled{ opacity:.5; cursor:not-allowed }
   .center{ text-align:center }
@@ -53,12 +36,12 @@
   .status{ font-size:14px; color:#795548; margin-left:8px }
   .sep{ height:1px; background:var(--rule); opacity:.5; margin:16px 0 }
   .hidden{ display:none !important }
-  /* 미세 떨림 */
   .shiver{ animation:shiver .35s linear 1 }
   @keyframes shiver{ 0%,100%{transform:translate(0,0)} 20%{transform:translate(-1px,0)} 40%{transform:translate(1px,0)} 60%{transform:translate(-1px,0)} 80%{transform:translate(1px,0)} }
-  /* 암전 페이드 */
   .fade-in{ animation:fadein .35s ease 1 }
   @keyframes fadein{ from{opacity:0} to{opacity:1} }
+  /* 사망/경고시 비네트 강화 */
+  .vignette-on::after{ box-shadow: inset 0 0 260px rgba(0,0,0,.65); }
 </style>
 </head>
 <body>
@@ -84,10 +67,9 @@
       <button class="btn" id="btnNext">다음 선택으로</button>
     </div>
 
-    <!-- 사망 화면 -->
     <div id="deathBox" class="hidden">
       <p>사망 원인: <b><span id="cause"></span></b></p>
-      <p class="muted">유언은 선택 사항입니다. <b id="limitInfo"></b> 내 입력이 없으면 기본 문구로 처리됩니다.</p>
+      <p class="muted">유언은 선택 사항입니다. <b id="limitInfo"></b> 내 미입력 시 자동 문구가 기록됩니다.</p>
       <textarea id="lastText" maxlength="300" placeholder="유언을 남기시겠습니까? (최대 300자)"></textarea>
       <div style="margin-top:8px;">
         <button class="btn" id="saveLWBtn">유언 저장</button>
@@ -96,6 +78,10 @@
     </div>
   </div>
 
+  <!-- ✅ BGM: 초기에 gameplay-theme 로드 / 사망시 death-theme로 전환
+       경로는 모두 /play/css/ 아래를 사용합니다. -->
+  <audio id="bgm" src="/play/css/gameplay-theme.mp3" loop preload="auto"></audio>
+
 <script>
   const $ = (s)=>document.querySelector(s);
   const btnL=$('#btnL'), btnF=$('#btnF'), btnR=$('#btnR');
@@ -103,52 +89,74 @@
   const causeEl=$('#cause'), stepInfo=$('#stepInfo'), timerEl=$('#timer');
   const saveBtn=$('#saveLWBtn'), saveStatus=$('#saveStatus'), lastText=$('#lastText');
   const hintBox=$('#hintBox'), hintText=$('#hintText'), limitInfo=$('#limitInfo');
+  const bgm = document.getElementById('bgm');
 
-  let hbTimer=null, selectTicker=null, selectDeadline=0, lwLimit=45, deathShown=false;
+  let hbTimer=null, pollTimer=null, selectTicker=null;
+  let selectDeadline=0, lwLimit=45, deathShown=false;
 
+  // ---- BGM 제어 ----
+  function enableAudioOnce(){
+    bgm.play().catch(()=>{});
+    document.removeEventListener('pointerdown', enableAudioOnce);
+  }
+  document.addEventListener('pointerdown', enableAudioOnce, { once:true });
+
+  function switchBgm(src){
+    try {
+      if (bgm.src.endsWith(src)) return;
+    } catch(_) {}
+    bgm.pause();
+    bgm.src = src;
+    bgm.currentTime = 0;
+    bgm.play().catch(()=>{});
+  }
+
+  // ---- UI 이펙트 ----
   function shiver(el){ el.classList.remove('shiver'); void el.offsetWidth; el.classList.add('shiver'); }
 
+  // ---- 하트비트 ----
   function startHB(){
     stopHB();
-    hbTimer=setInterval(()=>fetch('/api/queue',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({hb:true})
-    }),10000);
+    hbTimer=setInterval(()=>fetch('/api/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hb:true})}),10000);
   }
   function stopHB(){ if(hbTimer){ clearInterval(hbTimer); hbTimer=null; } }
 
-  // 부드러운 카운트다운: deadline(ms) 기준으로 250ms 간격 표시
   function startSelectTicker(){
     stopSelectTicker();
     selectTicker = setInterval(()=>{
       const remainMs = Math.max(0, selectDeadline - Date.now());
       const sec = Math.floor(remainMs/1000);
       timerEl.textContent = sec;
-      if (sec<=0) { clearInterval(selectTicker); showDeath('시간 초과'); }
+      if (sec<=0) { clearInterval(selectTicker); if (!deathShown) showDeath('시간 초과'); }
     }, 250);
   }
   function stopSelectTicker(){ if(selectTicker){ clearInterval(selectTicker); selectTicker=null; } }
 
   async function syncFromServer(){
     try{
-      const r=await fetch('/api/queue'); const d=await r.json();
-      if (d.state==='active' && typeof d.select_remain_sec==='number') {
-        const srvDeadline = Date.now() + Math.max(0,d.select_remain_sec|0)*1000;
-        if (!selectDeadline || srvDeadline < selectDeadline) {
-          selectDeadline = srvDeadline;
-          startSelectTicker();
+      const r=await fetch('/api/queue');
+      const d=await r.json();
+
+      if (d.state==='active') {
+        // 본게임 상태: gameplay BGM 유지
+        switchBgm('/play/css/gameplay-theme.mp3');
+
+        if (typeof d.select_remain_sec==='number') {
+          const srvDeadline = Date.now() + Math.max(0,d.select_remain_sec|0)*1000;
+          if (!selectDeadline || srvDeadline < selectDeadline) {
+            selectDeadline = srvDeadline; startSelectTicker();
+          }
         }
       } else if (d.state==='dead_pending') {
-        if (!deathShown) {
-          showDeath(d.cause || '사망');
-          deathShown = true;
-        }
-        if (typeof d.remain_sec === 'number') {
-          limitInfo.textContent = `${Math.max(0,d.remain_sec|0)}초`;
-        }
+        if (!deathShown) { showDeath(d.cause || '사망'); deathShown=true; }
+        if (typeof d.remain_sec === 'number') limitInfo.textContent = `${Math.max(0,d.remain_sec|0)}초`;
+        // 사망/유언 씬: death BGM
+        switchBgm('/play/css/death-theme.mp3');
       } else if (d.state==='finished') {
-        location.replace('/play/wall');
+        // 방명록으로
+        location.replace('/play/wall.html');
       } else if (d.state==='waiting') {
+        // 대기열로
         location.replace('/lobby.html');
       }
     }catch{}
@@ -162,9 +170,12 @@
     if (d.lastHint && d.lastHint.text){ hintText.textContent = d.lastHint.text; hintBox.classList.remove('hidden'); }
     lwLimit = d.lw_limit_sec || 45; limitInfo.textContent = `${lwLimit}초`;
 
+    // 본게임 입장 시점 BGM 보장 (사용자 첫 클릭 이후 자동 허용)
+    switchBgm('/play/css/gameplay-theme.mp3');
+
     startHB();
     await syncFromServer();
-    setInterval(syncFromServer, 3000); // 촘촘 동기화(표시 튐 완화)
+    pollTimer=setInterval(syncFromServer, 3000);
   }
 
   function disableChoice(v){ [btnL,btnF,btnR].forEach(b=>b.disabled=v); }
@@ -177,13 +188,18 @@
       if(!r.ok){ alert(d.error||'오류'); disableChoice(false); return; }
 
       if(d.result==='advance'){
-        stopSelectTicker();
         stepInfo.textContent='방 '+d.step;
         chooseBox.classList.add('hidden'); aliveBox.classList.remove('hidden');
+        stopSelectTicker();
+        // 전진: gameplay 유지
+        switchBgm('/play/css/gameplay-theme.mp3');
       }else if(d.result==='dead'){
         stopHB(); stopSelectTicker();
         showDeath(d.cause||'알 수 없음');
         deathShown = true;
+        // 사망: death-theme 전환 + 비네트 강화
+        switchBgm('/play/css/death-theme.mp3');
+        document.body.classList.add('vignette-on');
       }else{
         alert('알 수 없는 응답'); disableChoice(false);
       }
@@ -191,7 +207,7 @@
   }
 
   function showDeath(cause){
-    if (!deathShown && cause) causeEl.textContent = cause; // 이미 원인 있으면 덮어쓰지 않음
+    if (!deathShown && cause) causeEl.textContent = cause; // 사망 원인 덮어쓰기 방지
     chooseBox.classList.add('hidden'); aliveBox.classList.add('hidden'); deathBox.classList.remove('hidden');
   }
 
@@ -207,7 +223,7 @@
       if(r.ok && d.ok){
         saveStatus.textContent = d.already ? '이미 저장됨' : '저장 완료';
         lastText.disabled=true;
-        setTimeout(()=>{ location.href='/play/wall'; }, 250); // ✅ 저장 성공 즉시 방명록 이동
+        setTimeout(()=>{ location.href='/play/wall.html'; }, 250); // 저장 성공 즉시 이동
       }else{
         saveStatus.textContent=d.error||'저장 실패'; saveBtn.disabled=false;
       }
