@@ -9,7 +9,8 @@
   *{box-sizing:border-box}
   body{
     margin:0; padding:40px; font-family:'Noto Serif KR',serif; line-height:1.75; color:var(--ink);
-    background:url('/play/css/parchment-bg.jpg?v=3') center/cover fixed no-repeat;
+    /* ✅ 이미지 경로 고정 */
+    background:url('/play/css/images/parchment-bg.jpg?v=3') center/cover fixed no-repeat;
   }
   .wrap{ max-width:520px; margin:0 auto; background:rgba(255,255,255,.88); border-radius:14px; padding:26px 22px; border:1px solid rgba(0,0,0,.08) }
   h1{ text-align:center; margin:0 0 12px; font-size:26px }
@@ -27,10 +28,10 @@
   </div>
 
 <script>
-/* 페이지별 브금 지정 */
-window.BGM_SRC = '/play/css/gate-theme.mp3';
+/* ✅ 게이트 BGM 경로 고정 */
+window.BGM_SRC = '/play/css/bgm/gate-theme.mp3';
 
-/* ===== 공통 BGM 부트스트랩 (모든 페이지 동일) ===== */
+/* ===== 공통 BGM 부트스트랩 ===== */
 (function(){
   const state = { unlocked:false, ctx:null, el:null, trying:false };
   function makeAudioEl(src){ const a=document.createElement('audio'); a.id='bgm'; a.src=src; a.loop=true; a.preload='auto'; a.playsInline=true; a.crossOrigin='anonymous'; a.volume=0.5; document.body.appendChild(a); return a; }
@@ -45,12 +46,13 @@ window.BGM_SRC = '/play/css/gate-theme.mp3';
   window.switchBgm=function(newSrc){ if(!state.el) state.el=makeAudioEl(window.BGM_SRC); if(state.el.src.endsWith(newSrc))return; state.el.pause(); state.el.src=newSrc; state.el.currentTime=0; if(state.unlocked) state.el.play().catch(()=>{ overlayShow(); }); };
 })();
 
-/* 로그인(예시: /api/login) → 성공 시 /lobby.html */
+/* ✅ 비번 제출 시 트림+NFKC 정규화 */
 const $=s=>document.querySelector(s), pw=$('#pw'), go=$('#go'), msg=$('#msg');
 go.onclick=async ()=>{
   msg.textContent='확인 중…';
   try{
-    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pw:pw.value})});
+    const cleaned=(pw.value||'').trim().normalize('NFKC');
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pw:cleaned})});
     const d=await r.json().catch(()=>({}));
     if(r.ok && d.ok){ location.href='/lobby.html'; } else { msg.textContent=d.error||'틀렸습니다.'; }
   }catch{ msg.textContent='네트워크 오류'; }
