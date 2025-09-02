@@ -2,42 +2,60 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>두 번째 방 – 입장</title>
+<title>입구</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  body{margin:0;padding:40px;background:url('/images/parchment-bg.jpg') center/cover fixed no-repeat;color:#2b1b0e;font-family:'Noto Serif KR',serif}
-  .card{max-width:520px;margin:10vh auto;background:rgba(255,255,255,.76);border-radius:12px;padding:24px 20px}
-  h1{text-align:center;margin:0 0 14px}
-  input{width:100%;padding:12px;border:1px solid #b89a6a;border-radius:6px}
-  button{margin-top:10px;width:100%;padding:12px;border:1px solid #b89a6a;border-radius:8px;background:#f7efe2;cursor:pointer}
-  .msg{min-height:20px;font-size:14px;color:#795548;margin-top:6px}
+  :root{ --ink:#1d130b; --rule:#b89a6a; }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:40px; font-family:'Noto Serif KR',serif; line-height:1.75; color:var(--ink);
+    background:url('/play/css/parchment-bg.jpg?v=3') center/cover fixed no-repeat;
+  }
+  .wrap{ max-width:520px; margin:0 auto; background:rgba(255,255,255,.88); border-radius:14px; padding:26px 22px; border:1px solid rgba(0,0,0,.08) }
+  h1{ text-align:center; margin:0 0 12px; font-size:26px }
+  .inp{ width:100%; padding:12px; border:1px solid var(--rule); border-radius:10px; font-size:18px }
+  .btn{ display:inline-block; width:100%; padding:12px; margin-top:10px; text-align:center; border:1px solid var(--rule); border-radius:10px; background:#00000012; cursor:pointer; font-size:18px }
+  .msg{ text-align:center; color:#7b5e43; min-height:24px; margin-top:8px }
 </style>
-<script>
-  if (document.cookie.includes('auth2=wall')) location.replace('/play/wall');
-</script>
 </head>
 <body>
-  <div class="card">
-    <h1>두 번째 방 입구</h1>
-    <p>암호를 입력하면 로비로 이동합니다.</p>
-    <form id="f" onsubmit="return false">
-      <input id="code" type="password" placeholder="암호 입력" autocomplete="off" />
-      <button id="btn">입장</button>
-      <div class="msg" id="msg"></div>
-    </form>
+  <div class="wrap">
+    <h1>입장 비밀번호</h1>
+    <input id="pw" class="inp" type="password" placeholder="비밀번호" autocomplete="off" />
+    <button id="go" class="btn">입장</button>
+    <div id="msg" class="msg"></div>
   </div>
+
 <script>
-const code=document.getElementById('code'), btn=document.getElementById('btn'), msg=document.getElementById('msg');
-document.getElementById('f').addEventListener('submit', async e=>{
-  e.preventDefault();
-  const v=code.value.trim(); if(!v){msg.textContent='암호를 입력하세요.';return;}
-  btn.disabled=true; msg.textContent='확인 중…';
+/* 페이지별 브금 지정 */
+window.BGM_SRC = '/play/css/gate-theme.mp3';
+
+/* ===== 공통 BGM 부트스트랩 (모든 페이지 동일) ===== */
+(function(){
+  const state = { unlocked:false, ctx:null, el:null, trying:false };
+  function makeAudioEl(src){ const a=document.createElement('audio'); a.id='bgm'; a.src=src; a.loop=true; a.preload='auto'; a.playsInline=true; a.crossOrigin='anonymous'; a.volume=0.5; document.body.appendChild(a); return a; }
+  async function unlockWebAudio(){ try{ if(state.ctx && state.ctx.state==='running')return; state.ctx=state.ctx||new (window.AudioContext||window.webkitAudioContext)(); if(state.ctx.state!=='running')await state.ctx.resume(); const o=state.ctx.createOscillator(), g=state.ctx.createGain(); g.gain.value=0.0001; o.connect(g).connect(state.ctx.destination); o.start(); o.stop(state.ctx.currentTime+0.03);}catch{} }
+  async function tryPlay(){ if(state.trying)return; state.trying=true; try{ if(!state.el) state.el=makeAudioEl(window.BGM_SRC); await unlockWebAudio(); await state.el.play(); state.unlocked=true; overlayHide(); }catch(e){ overlayShow(); } finally{ state.trying=false; } }
+  function userGestureOnce(){ tryPlay(); ['pointerdown','keydown','touchstart'].forEach(t=>document.removeEventListener(t,userGestureOnce)); }
+  ['pointerdown','keydown','touchstart'].forEach(t=>document.addEventListener(t,userGestureOnce,{once:true}));
+  setTimeout(()=>{ if(!state.unlocked) tryPlay(); }, 1500);
+  document.addEventListener('visibilitychange', ()=>{ if(!state.el)return; if(document.hidden) state.el.pause(); else if(state.unlocked) state.el.play().catch(()=>{}); });
+  let overlay=null; function overlayShow(){ if(overlay)return; overlay=document.createElement('div'); overlay.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:9999;color:#fff'; overlay.innerHTML='<div style="background:#222;border:1px solid #555;padding:16px 18px;border-radius:12px;text-align:center;max-width:320px"><div style="font-size:16px;margin-bottom:8px">🔊 브금 허용</div><div style="font-size:13px;opacity:.9;margin-bottom:12px">한 번 눌러서 소리를 켭니다</div><button id="bgmAllow" style="padding:8px 12px;border-radius:10px;border:1px solid #777;background:#333;color:#fff;cursor:pointer">소리 켜기</button></div>'; document.body.appendChild(overlay); overlay.querySelector('#bgmAllow').addEventListener('click', tryPlay); }
+  function overlayHide(){ if(!overlay)return; overlay.remove(); overlay=null; }
+  window.switchBgm=function(newSrc){ if(!state.el) state.el=makeAudioEl(window.BGM_SRC); if(state.el.src.endsWith(newSrc))return; state.el.pause(); state.el.src=newSrc; state.el.currentTime=0; if(state.unlocked) state.el.play().catch(()=>{ overlayShow(); }); };
+})();
+
+/* 로그인(예시: /api/login) → 성공 시 /lobby.html */
+const $=s=>document.querySelector(s), pw=$('#pw'), go=$('#go'), msg=$('#msg');
+go.onclick=async ()=>{
+  msg.textContent='확인 중…';
   try{
-    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:v})});
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pw:pw.value})});
     const d=await r.json().catch(()=>({}));
-    if(r.ok && d.ok){ location.href = d.wall ? '/play/wall' : '/lobby.html'; }
-    else{ msg.textContent='암호가 틀렸습니다.'; btn.disabled=false; }
-  }catch{ msg.textContent='네트워크 오류'; btn.disabled=false; }
-});
+    if(r.ok && d.ok){ location.href='/lobby.html'; } else { msg.textContent=d.error||'틀렸습니다.'; }
+  }catch{ msg.textContent='네트워크 오류'; }
+};
+pw.addEventListener('keydown',e=>{ if(e.key==='Enter') go.click(); });
 </script>
 </body>
 </html>
