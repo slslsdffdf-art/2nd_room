@@ -5,44 +5,42 @@
 <title>입구</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
 <style>
+  :root{ --ink:#1d130b; --rule:#b89a6a; }
+  *{box-sizing:border-box}
   body{
-    margin:0; padding:40px;
-    font-family:'Noto Serif KR',serif; line-height:1.6;
-    background:url('/css/images/parchment-bg.jpg') center/cover fixed no-repeat;
-    color:#1d130b;
+    margin:0; padding:40px; font-family:'Noto Serif KR',serif; line-height:1.75; color:var(--ink);
+    background:url('/css/images/parchment-bg.jpg?v=3') center/cover fixed no-repeat;
   }
-  .wrap{ max-width:500px; margin:60px auto; background:rgba(255,255,255,.82); border-radius:12px; padding:24px; }
-  h1{text-align:center}
-  input{width:100%; padding:12px; font-size:18px; margin-top:12px}
-  button{margin-top:12px; padding:12px; width:100%; font-size:18px; cursor:pointer}
-  #msg{margin-top:8px; font-size:14px; color:#a00; text-align:center}
+  .wrap{ max-width:520px; margin:0 auto; background:rgba(255,255,255,.88); border-radius:14px; padding:26px 22px; border:1px solid rgba(0,0,0,.08) }
+  h1{ text-align:center; margin:0 0 12px; font-size:26px }
+  .inp{ width:100%; padding:12px; border:1px solid var(--rule); border-radius:10px; font-size:18px }
+  .btn{ display:inline-block; width:100%; padding:12px; margin-top:10px; text-align:center; border:1px solid var(--rule); border-radius:10px; background:#00000012; cursor:pointer; font-size:18px }
+  .msg{ text-align:center; color:#7b5e43; min-height:24px; margin-top:8px }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>비밀번호 입력</h1>
-    <input id="pw" type="password" placeholder="Password">
-    <button id="go">입장</button>
-    <div id="msg"></div>
+    <h1>입장 비밀번호</h1>
+    <input id="pw" class="inp" type="password" placeholder="비밀번호" autocomplete="off" />
+    <button id="go" class="btn">입장</button>
+    <div id="msg" class="msg"></div>
   </div>
 
 <script>
 const $=s=>document.querySelector(s), pw=$('#pw'), go=$('#go'), msg=$('#msg');
-
 go.onclick=async ()=>{
-  msg.textContent='확인중…';
-  const cleaned=(pw.value||'').trim().normalize('NFKC');
+  msg.textContent='확인 중…';
   try{
+    const cleaned=(pw.value||'').trim().normalize('NFKC'); // ← 모바일 정규화
     const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pw:cleaned})});
     const d=await r.json().catch(()=>({}));
-    if(r.ok && d.ok){ location.href='/lobby.html'; }
-    else msg.textContent=d.error||'비밀번호가 틀렸습니다.';
+    if(r.ok && d.ok){ location.href='/lobby.html'; } else { msg.textContent=d.error||'틀렸습니다.'; }
   }catch{ msg.textContent='네트워크 오류'; }
 };
 pw.addEventListener('keydown',e=>{ if(e.key==='Enter') go.click(); });
 
-// 브금
-window.BGM_SRC='/css/bgm/gate-theme.mp3';
+// BGM
+window.BGM_SRC = '/css/bgm/gate-theme.mp3';
 </script>
 <script src="/css/bgm/player.js"></script>
 </body>
