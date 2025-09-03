@@ -16,27 +16,22 @@ export async function onRequest({ request, env }){
   const avg = Math.max(30, parseInt(AVG_DURATION_SEC,10)||90);
   const lwLimit = Math.max(10, parseInt(LASTWORDS_LIMIT_SEC,10)||45);
   const selLimit = Math.max(30, parseInt(SELECT_LIMIT_SEC,10)||90);
-  const ticket = getCookie(request,'q2') || '';
 
+  const ticket = getCookie(request,'q2') || '';
   if (!ticket) return json({ error:'no_ticket' }, 401);
 
-  // 유언 타임아웃 시 자동저장 & active 해제
   async function finalizeActiveIfTimedOut() {
     const raw = await LINES.get('q:active'); let act = raw?JSON.parse(raw):null;
     if (!act || !act.dead) return false;
     if (now() <= (act.lw_deadline||0)) return false;
 
-    // 이미 저장된 티켓이면 active만 삭제
+    // 이미 유언 저장된 티켓이면 active만 해제
     if (await LINES.get(`lw:byTicket:${act.ticket}`)) { await LINES.delete('q:active'); return true; }
 
-    // 기본 유언으로 자동 저장
+    // 기본 유언 자동 저장
     const idxRaw = await LINES.get('idx'); const idx = idxRaw?JSON.parse(idxRaw):[];
     const nextId = idx.length ? Math.max(...idx)+1 : 1;
-    const item = {
-      id: nextId, ts: now(),
-      step: act.step || 0, cause: act.cause || '사망',
-      text: '외마디 비명도 지르지 못한 채 즉사.'
-    };
+    const item = { id: nextId, ts: now(), step: act.step||0, cause: act.cause||'사망', text:'외마디 비명도 지르지 못한 채 즉사.' };
     idx.push(nextId);
     await LINES.put('idx', JSON.stringify(idx));
     await LINES.put(`l:${nextId}`, JSON.stringify(item));
@@ -46,7 +41,6 @@ export async function onRequest({ request, env }){
     return true;
   }
 
-  // 선택 제한 초과면 자동 사망(기존 원인 있으면 덮어쓰지 않음)
   async function autoKillIfSelectTimedOut() {
     const raw = await LINES.get('q:active'); let act = raw?JSON.parse(raw):null;
     if (!act || act.dead) return null;
@@ -80,11 +74,11 @@ export async function onRequest({ request, env }){
       }
     }
 
-    // 하트비트 끊긴 active 30초 → 해제
+    // 하트비트 끊긴 active(30초) → 해제
     const stale = act && !act.dead && (now() - (act.updated||act.since||0) > 30000);
     if (stale) { act=null; await LINES.delete('q:active'); }
 
-    // active 없으면 선두 승급
+    // active 없으면 선두 입장
     if (!act && q.length>0) {
       const head=q.shift();
       await LINES.put('q:queue', JSON.stringify(q));
@@ -105,7 +99,7 @@ export async function onRequest({ request, env }){
       );
     }
 
-    // 내 상태 응답
+    // 내 상태
     const size = q.length + (act?1:0);
 
     if (act && act.ticket===ticket && !act.dead) {
@@ -138,6 +132,7 @@ export async function onRequest({ request, env }){
 
   if (request.method === 'POST') {
     const body = await request.json().catch(()=>({}));
+
     if (body.hb) {
       const act = JSON.parse((await LINES.get('q:active')) || 'null');
       if (act && act.ticket===ticket && !act.dead) {
@@ -147,14 +142,16 @@ export async function onRequest({ request, env }){
       }
       return json({ error:'not_active' },409);
     }
+
     if (body.leave) {
       const q = JSON.parse((await LINES.get('q:queue')) || '[]');
       const i = q.indexOf(ticket); if (i>=0){ q.splice(i,1); await LINES.put('q:queue', JSON.stringify(q)); }
       const H=new Headers(); setCookie(H,'q2','',{httpOnly:true,maxAge:0});
       return json({ ok:true },200,Object.fromEntries(H.entries()));
     }
+
     return json({ error:'bad_request' },400);
   }
 
   return json({ error:'Method Not Allowed' },405);
-                                                   }
+}
