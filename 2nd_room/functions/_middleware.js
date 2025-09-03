@@ -1,36 +1,36 @@
+// 정적 리소스는 인증 우회
+const STATIC_ALLOW = [
+  /^\/css\/images\/.+\.(png|jpg|jpeg|webp|gif|svg)$/i,
+  /^\/css\/bgm\/.+\.(mp3|ogg|wav|m4a)$/i,
+  /^\/css\/.+\.(css|js|map|json|woff2?|ttf)$/i,
+  // 과거 경로 호환: /play/css/* 로 오는 정적 요청도 통과
+  /^\/play\/css\/images\/.+\.(png|jpg|jpeg|webp|gif|svg)$/i,
+  /^\/play\/css\/bgm\/.+\.(mp3|ogg|wav|m4a)$/i,
+];
+
+function getCookie(req, name) {
+  const c = req.headers.get('Cookie') || '';
+  const m = c.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'));
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
 export async function onRequest(context) {
-  const req = context.request;
-  const url = new URL(req.url);
+  const { request } = context;
+  const url = new URL(request.url);
   const p = url.pathname;
-  const cookie = req.headers.get("Cookie") || "";
-  const hasOK   = /(^|;\s*)auth2=ok(;|$)/.test(cookie);
-  const hasWall = /(^|;\s*)auth2=wall(;|$)/.test(cookie);
-  const isAdmin = /(^|;\s*)admin=1(;|$)/.test(cookie);
 
-  // 공개/허용 경로
-  const allow =
-    p === "/" ||
-    p === "/lobby.html" ||
-    p.startsWith("/images/") ||
-    p.startsWith("/api/login") ||
-    p.startsWith("/api/queue") ||
-    p.startsWith("/api/lines") ||
-    p.startsWith("/api/admin-login") ||
-    p.startsWith("/api/admin-logout") ||
-    p.startsWith("/play/wall");
-
-  if (allow) return context.next();
-
-  // /play/* 접근 제어
-  if (p.startsWith("/play/")) {
-    if (isAdmin) return context.next();
-    if (hasWall) {
-      return new Response(null, { status: 302, headers: { Location: "/play/wall" } });
-    }
-    if (!hasOK) {
-      return new Response(null, { status: 302, headers: { Location: "/lobby.html" } });
-    }
+  // 1) 정적 파일은 그대로 통과
+  if (STATIC_ALLOW.some(rx => rx.test(p))) {
+    return fetch(request);
   }
 
-  return context.next();
+  // 2) 본문 보호: /play/* 는 auth / auth2 필요 (API는 각 파일에서 처리)
+  if (p.startsWith('/play')) {
+    const hasAuth = getCookie(request, 'auth') === 'ok' || !!getCookie(request, 'auth2');
+    if (!hasAuth) return Response.redirect(url.origin + '/', 302);
+  }
+
+  // 3) 나머지는 다음으로
+  if (typeof context.next === 'function') return await context.next();
+  return fetch(request);
 }
