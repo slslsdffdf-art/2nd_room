@@ -5,99 +5,45 @@
 <title>입구</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  :root{ --ink:#1d130b; --rule:#b89a6a; }
-  *{box-sizing:border-box}
   body{
-    margin:0; padding:40px; font-family:'Noto Serif KR',serif; line-height:1.75; color:var(--ink);
-    /* 배경은 JS에서 동적으로 설정됨 */
-    background:#1a1612;
+    margin:0; padding:40px;
+    font-family:'Noto Serif KR',serif; line-height:1.6;
+    background:url('/css/images/parchment-bg.jpg') center/cover fixed no-repeat;
+    color:#1d130b;
   }
-  .wrap{ max-width:520px; margin:0 auto; background:rgba(255,255,255,.88); border-radius:14px; padding:26px 22px; border:1px solid rgba(0,0,0,.08) }
-  h1{ text-align:center; margin:0 0 12px; font-size:26px }
-  .inp{ width:100%; padding:12px; border:1px solid var(--rule); border-radius:10px; font-size:18px }
-  .btn{ display:inline-block; width:100%; padding:12px; margin-top:10px; text-align:center; border:1px solid var(--rule); border-radius:10px; background:#00000012; cursor:pointer; font-size:18px }
-  .msg{ text-align:center; color:#7b5e43; min-height:24px; margin-top:8px }
+  .wrap{ max-width:500px; margin:60px auto; background:rgba(255,255,255,.82); border-radius:12px; padding:24px; }
+  h1{text-align:center}
+  input{width:100%; padding:12px; font-size:18px; margin-top:12px}
+  button{margin-top:12px; padding:12px; width:100%; font-size:18px; cursor:pointer}
+  #msg{margin-top:8px; font-size:14px; color:#a00; text-align:center}
 </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>입장 비밀번호</h1>
-    <input id="pw" class="inp" type="password" placeholder="비밀번호" autocomplete="off" />
-    <button id="go" class="btn">입장</button>
-    <div id="msg" class="msg"></div>
+    <h1>비밀번호 입력</h1>
+    <input id="pw" type="password" placeholder="Password">
+    <button id="go">입장</button>
+    <div id="msg"></div>
   </div>
 
 <script>
-/* ==== 공통: 리소스 후보 중 첫번째 성공 경로를 고르는 헬퍼 ==== */
-async function pickFirstAvailable(urls, timeoutMs=4000){
-  for(const u of urls){
-    try{
-      const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), timeoutMs);
-      const r=await fetch(u,{method:'HEAD',cache:'no-store',signal:ctrl.signal});
-      clearTimeout(t);
-      if(r.ok) return u;
-    }catch{}
-  }
-  return null;
-}
-
-/* ==== 배경 이미지 자동 탐지 & 적용 ==== */
-(async ()=>{
-  const bgCandidates = [
-    '/play/css/images/parchment-bg.jpg',
-    '/play/css/images/parchment-bg.webp',
-    '/play/css/parchment-bg.jpg',
-    '/play/css/bgm/parchment-bg.jpg',
-    '/css/images/parchment-bg.jpg',
-    '/images/parchment-bg.jpg'
-  ];
-  const bg = await pickFirstAvailable(bgCandidates);
-  if(bg){
-    document.body.style.background = `url('${bg}?v=4') center/cover fixed no-repeat`;
-  } else {
-    // 최소한 보이는 배경
-    document.body.style.background = '#111';
-  }
-})();
-
-/* ==== BGM 자동 탐지 + 오토플레이 부트스트랩 ==== */
-(async ()=>{
-  const bgmCandidates = [
-    '/play/css/bgm/gate-theme.mp3',
-    '/play/css/bgm/gate.mp3',
-    '/css/bgm/gate-theme.mp3',
-    '/bgm/gate-theme.mp3'
-  ];
-  const found = await pickFirstAvailable(bgmCandidates);
-  window.BGM_SRC = found || '';  // 없으면 무음
-
-  (function(){
-    const state = { unlocked:false, ctx:null, el:null, trying:false };
-    function makeAudioEl(src){ const a=document.createElement('audio'); a.id='bgm'; a.src=src; a.loop=true; a.preload='auto'; a.playsInline=true; a.crossOrigin='anonymous'; a.volume=0.55; document.body.appendChild(a); return a; }
-    async function unlockWA(){ try{ if(state.ctx&&state.ctx.state==='running')return; state.ctx=state.ctx||new (window.AudioContext||window.webkitAudioContext)(); if(state.ctx.state!=='running')await state.ctx.resume(); const o=state.ctx.createOscillator(), g=state.ctx.createGain(); g.gain.value=0.0001; o.connect(g).connect(state.ctx.destination); o.start(); o.stop(state.ctx.currentTime+0.03);}catch{} }
-    async function play(){ if(state.trying||!window.BGM_SRC) return; state.trying=true; try{ if(!state.el) state.el=makeAudioEl(window.BGM_SRC); await unlockWA(); await state.el.play(); state.unlocked=true; hide(); }catch{ show(); } finally{ state.trying=false; } }
-    function arm(){ play(); ['pointerdown','keydown','touchstart'].forEach(t=>document.removeEventListener(t,arm)); }
-    ['pointerdown','keydown','touchstart'].forEach(t=>document.addEventListener(t,arm,{once:true}));
-    setTimeout(()=>{ if(!state.unlocked) play(); }, 1500);
-    document.addEventListener('visibilitychange',()=>{ if(!state.el)return; if(document.hidden) state.el.pause(); else if(state.unlocked) state.el.play().catch(()=>{}); });
-    let ov=null; function show(){ if(ov||!window.BGM_SRC) return; ov=document.createElement('div'); ov.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:9999;color:#fff'; ov.innerHTML='<div style="background:#222;border:1px solid #555;padding:16px 18px;border-radius:12px;text-align:center;max-width:320px"><div style="font-size:16px;margin-bottom:8px">🔊 브금 허용</div><div style="font-size:13px;opacity:.9;margin-bottom:12px">한 번 눌러서 소리를 켭니다</div><button id="bgmAllow" style="padding:8px 12px;border-radius:10px;border:1px solid #777;background:#333;color:#fff;cursor:pointer">소리 켜기</button></div>'; document.body.appendChild(ov); ov.querySelector('#bgmAllow').addEventListener('click', play); }
-    function hide(){ if(!ov)return; ov.remove(); ov=null; }
-    window.switchBgm=function(n){ if(!state.el) state.el=makeAudioEl(window.BGM_SRC); if(state.el.src.endsWith(n))return; state.el.pause(); state.el.src=n; state.el.currentTime=0; if(state.unlocked) state.el.play().catch(()=>{ show(); }); };
-  })();
-})();
-
-/* ==== 게이트 로그인 ==== */
 const $=s=>document.querySelector(s), pw=$('#pw'), go=$('#go'), msg=$('#msg');
+
 go.onclick=async ()=>{
-  msg.textContent='확인 중…';
+  msg.textContent='확인중…';
+  const cleaned=(pw.value||'').trim().normalize('NFKC');
   try{
-    const cleaned=(pw.value||'').trim().normalize('NFKC');
     const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pw:cleaned})});
     const d=await r.json().catch(()=>({}));
-    if(r.ok && d.ok){ location.href='/lobby.html'; } else { msg.textContent=d.error||'틀렸습니다.'; }
+    if(r.ok && d.ok){ location.href='/lobby.html'; }
+    else msg.textContent=d.error||'비밀번호가 틀렸습니다.';
   }catch{ msg.textContent='네트워크 오류'; }
 };
 pw.addEventListener('keydown',e=>{ if(e.key==='Enter') go.click(); });
+
+// 브금
+window.BGM_SRC='/css/bgm/gate-theme.mp3';
 </script>
+<script src="/css/bgm/player.js"></script>
 </body>
 </html>
