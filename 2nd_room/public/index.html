@@ -9,8 +9,8 @@
   *{box-sizing:border-box}
   body{
     margin:0; padding:40px; font-family:'Noto Serif KR',serif; line-height:1.75; color:var(--ink);
-    /* ✅ 이미지 경로 고정 */
-    background:url('/play/css/images/parchment-bg.jpg?v=3') center/cover fixed no-repeat;
+    /* 배경은 JS에서 동적으로 설정됨 */
+    background:#1a1612;
   }
   .wrap{ max-width:520px; margin:0 auto; background:rgba(255,255,255,.88); border-radius:14px; padding:26px 22px; border:1px solid rgba(0,0,0,.08) }
   h1{ text-align:center; margin:0 0 12px; font-size:26px }
@@ -28,25 +28,65 @@
   </div>
 
 <script>
-/* ✅ 게이트 BGM 경로 고정 */
-window.BGM_SRC = '/play/css/bgm/gate-theme.mp3';
+/* ==== 공통: 리소스 후보 중 첫번째 성공 경로를 고르는 헬퍼 ==== */
+async function pickFirstAvailable(urls, timeoutMs=4000){
+  for(const u of urls){
+    try{
+      const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), timeoutMs);
+      const r=await fetch(u,{method:'HEAD',cache:'no-store',signal:ctrl.signal});
+      clearTimeout(t);
+      if(r.ok) return u;
+    }catch{}
+  }
+  return null;
+}
 
-/* ===== 공통 BGM 부트스트랩 ===== */
-(function(){
-  const state = { unlocked:false, ctx:null, el:null, trying:false };
-  function makeAudioEl(src){ const a=document.createElement('audio'); a.id='bgm'; a.src=src; a.loop=true; a.preload='auto'; a.playsInline=true; a.crossOrigin='anonymous'; a.volume=0.5; document.body.appendChild(a); return a; }
-  async function unlockWebAudio(){ try{ if(state.ctx && state.ctx.state==='running')return; state.ctx=state.ctx||new (window.AudioContext||window.webkitAudioContext)(); if(state.ctx.state!=='running')await state.ctx.resume(); const o=state.ctx.createOscillator(), g=state.ctx.createGain(); g.gain.value=0.0001; o.connect(g).connect(state.ctx.destination); o.start(); o.stop(state.ctx.currentTime+0.03);}catch{} }
-  async function tryPlay(){ if(state.trying)return; state.trying=true; try{ if(!state.el) state.el=makeAudioEl(window.BGM_SRC); await unlockWebAudio(); await state.el.play(); state.unlocked=true; overlayHide(); }catch(e){ overlayShow(); } finally{ state.trying=false; } }
-  function userGestureOnce(){ tryPlay(); ['pointerdown','keydown','touchstart'].forEach(t=>document.removeEventListener(t,userGestureOnce)); }
-  ['pointerdown','keydown','touchstart'].forEach(t=>document.addEventListener(t,userGestureOnce,{once:true}));
-  setTimeout(()=>{ if(!state.unlocked) tryPlay(); }, 1500);
-  document.addEventListener('visibilitychange', ()=>{ if(!state.el)return; if(document.hidden) state.el.pause(); else if(state.unlocked) state.el.play().catch(()=>{}); });
-  let overlay=null; function overlayShow(){ if(overlay)return; overlay=document.createElement('div'); overlay.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:9999;color:#fff'; overlay.innerHTML='<div style="background:#222;border:1px solid #555;padding:16px 18px;border-radius:12px;text-align:center;max-width:320px"><div style="font-size:16px;margin-bottom:8px">🔊 브금 허용</div><div style="font-size:13px;opacity:.9;margin-bottom:12px">한 번 눌러서 소리를 켭니다</div><button id="bgmAllow" style="padding:8px 12px;border-radius:10px;border:1px solid #777;background:#333;color:#fff;cursor:pointer">소리 켜기</button></div>'; document.body.appendChild(overlay); overlay.querySelector('#bgmAllow').addEventListener('click', tryPlay); }
-  function overlayHide(){ if(!overlay)return; overlay.remove(); overlay=null; }
-  window.switchBgm=function(newSrc){ if(!state.el) state.el=makeAudioEl(window.BGM_SRC); if(state.el.src.endsWith(newSrc))return; state.el.pause(); state.el.src=newSrc; state.el.currentTime=0; if(state.unlocked) state.el.play().catch(()=>{ overlayShow(); }); };
+/* ==== 배경 이미지 자동 탐지 & 적용 ==== */
+(async ()=>{
+  const bgCandidates = [
+    '/play/css/images/parchment-bg.jpg',
+    '/play/css/images/parchment-bg.webp',
+    '/play/css/parchment-bg.jpg',
+    '/play/css/bgm/parchment-bg.jpg',
+    '/css/images/parchment-bg.jpg',
+    '/images/parchment-bg.jpg'
+  ];
+  const bg = await pickFirstAvailable(bgCandidates);
+  if(bg){
+    document.body.style.background = `url('${bg}?v=4') center/cover fixed no-repeat`;
+  } else {
+    // 최소한 보이는 배경
+    document.body.style.background = '#111';
+  }
 })();
 
-/* ✅ 비번 제출 시 트림+NFKC 정규화 */
+/* ==== BGM 자동 탐지 + 오토플레이 부트스트랩 ==== */
+(async ()=>{
+  const bgmCandidates = [
+    '/play/css/bgm/gate-theme.mp3',
+    '/play/css/bgm/gate.mp3',
+    '/css/bgm/gate-theme.mp3',
+    '/bgm/gate-theme.mp3'
+  ];
+  const found = await pickFirstAvailable(bgmCandidates);
+  window.BGM_SRC = found || '';  // 없으면 무음
+
+  (function(){
+    const state = { unlocked:false, ctx:null, el:null, trying:false };
+    function makeAudioEl(src){ const a=document.createElement('audio'); a.id='bgm'; a.src=src; a.loop=true; a.preload='auto'; a.playsInline=true; a.crossOrigin='anonymous'; a.volume=0.55; document.body.appendChild(a); return a; }
+    async function unlockWA(){ try{ if(state.ctx&&state.ctx.state==='running')return; state.ctx=state.ctx||new (window.AudioContext||window.webkitAudioContext)(); if(state.ctx.state!=='running')await state.ctx.resume(); const o=state.ctx.createOscillator(), g=state.ctx.createGain(); g.gain.value=0.0001; o.connect(g).connect(state.ctx.destination); o.start(); o.stop(state.ctx.currentTime+0.03);}catch{} }
+    async function play(){ if(state.trying||!window.BGM_SRC) return; state.trying=true; try{ if(!state.el) state.el=makeAudioEl(window.BGM_SRC); await unlockWA(); await state.el.play(); state.unlocked=true; hide(); }catch{ show(); } finally{ state.trying=false; } }
+    function arm(){ play(); ['pointerdown','keydown','touchstart'].forEach(t=>document.removeEventListener(t,arm)); }
+    ['pointerdown','keydown','touchstart'].forEach(t=>document.addEventListener(t,arm,{once:true}));
+    setTimeout(()=>{ if(!state.unlocked) play(); }, 1500);
+    document.addEventListener('visibilitychange',()=>{ if(!state.el)return; if(document.hidden) state.el.pause(); else if(state.unlocked) state.el.play().catch(()=>{}); });
+    let ov=null; function show(){ if(ov||!window.BGM_SRC) return; ov=document.createElement('div'); ov.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:9999;color:#fff'; ov.innerHTML='<div style="background:#222;border:1px solid #555;padding:16px 18px;border-radius:12px;text-align:center;max-width:320px"><div style="font-size:16px;margin-bottom:8px">🔊 브금 허용</div><div style="font-size:13px;opacity:.9;margin-bottom:12px">한 번 눌러서 소리를 켭니다</div><button id="bgmAllow" style="padding:8px 12px;border-radius:10px;border:1px solid #777;background:#333;color:#fff;cursor:pointer">소리 켜기</button></div>'; document.body.appendChild(ov); ov.querySelector('#bgmAllow').addEventListener('click', play); }
+    function hide(){ if(!ov)return; ov.remove(); ov=null; }
+    window.switchBgm=function(n){ if(!state.el) state.el=makeAudioEl(window.BGM_SRC); if(state.el.src.endsWith(n))return; state.el.pause(); state.el.src=n; state.el.currentTime=0; if(state.unlocked) state.el.play().catch(()=>{ show(); }); };
+  })();
+})();
+
+/* ==== 게이트 로그인 ==== */
 const $=s=>document.querySelector(s), pw=$('#pw'), go=$('#go'), msg=$('#msg');
 go.onclick=async ()=>{
   msg.textContent='확인 중…';
