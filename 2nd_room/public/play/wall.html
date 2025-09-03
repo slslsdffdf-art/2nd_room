@@ -7,9 +7,7 @@
 <style>
   :root{ --ink:#1d130b; --rule:#b89a6a; }
   *{box-sizing:border-box}
-  body{ margin:0; padding:40px; font-family:'Noto Serif KR',serif; line-height:1.75; color:#1d130b;
-    /* ✅ 이미지 경로 고정 */
-    background:url('/play/css/images/parchment-bg.jpg?v=3') center/cover fixed no-repeat; }
+  body{ margin:0; padding:40px; font-family:'Noto Serif KR',serif; line-height:1.75; color:#1d130b; background:#1a1612; }
   .wrap{ max-width:860px; margin:0 auto; background:rgba(255,255,255,.86); border-radius:14px; padding:24px 20px; border:1px solid rgba(0,0,0,.08) }
   h1{ margin:0 0 12px; text-align:center; font-size:26px }
   .item{ border-bottom:1px solid #d8c6a3; padding:12px 6px }
@@ -32,12 +30,44 @@
   </div>
 
 <script>
-/* ✅ 방명록 BGM 경로 고정 */
-window.BGM_SRC = '/play/css/bgm/wall-theme.mp3';
-/* 공통 BGM 부트스트랩 (축약판) */
-(function(){const s={unlocked:false,ctx:null,el:null,trying:false};function m(src){const a=document.createElement('audio');a.id='bgm';a.src=src;a.loop=true;a.preload='auto';a.playsInline=true;a.crossOrigin='anonymous';a.volume=0.5;document.body.appendChild(a);return a;}async function u(){try{if(s.ctx&&s.ctx.state==='running')return;s.ctx=s.ctx||new (window.AudioContext||window.webkitAudioContext)();if(s.ctx.state!=='running')await s.ctx.resume();const o=s.ctx.createOscillator(),g=s.ctx.createGain();g.gain.value=0.0001;o.connect(g).connect(s.ctx.destination);o.start();o.stop(s.ctx.currentTime+0.03);}catch{}}async function p(){if(s.trying)return;s.trying=true;try{if(!s.el)s.el=m(window.BGM_SRC);await u();await s.el.play();s.unlocked=true;h();}catch(e){q();}finally{s.trying=false;}}function O(){p();['pointerdown','keydown','touchstart'].forEach(t=>document.removeEventListener(t,O));}['pointerdown','keydown','touchstart'].forEach(t=>document.addEventListener(t,O,{once:true}));setTimeout(()=>{if(!s.unlocked)p();},1500);document.addEventListener('visibilitychange',()=>{if(!s.el)return; if(document.hidden)s.el.pause(); else if(s.unlocked)s.el.play().catch(()=>{});});let v=null;function q(){if(v)return;v=document.createElement('div');v.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:9999;color:#fff';v.innerHTML='<div style="background:#222;border:1px solid #555;padding:16px 18px;border-radius:12px;text-align:center;max-width:320px"><div style="font-size:16px;margin-bottom:8px">🔊 브금 허용</div><div style="font-size:13px;opacity:.9;margin-bottom:12px">한 번 눌러서 소리를 켭니다</div><button id="bgmAllow" style="padding:8px 12px;border-radius:10px;border:1px solid #777;background:#333;color:#fff;cursor:pointer">소리 켜기</button></div>';document.body.appendChild(v);v.querySelector('#bgmAllow').addEventListener('click',p);}function h(){if(!v)return;v.remove();v=null;}window.switchBgm=function(n){if(!s.el)s.el=m(window.BGM_SRC);if(s.el.src.endsWith(n))return;s.el.pause();s.el.src=n;s.el.currentTime=0;if(s.unlocked)s.el.play().catch(()=>{q();});};})();
+async function pickFirstAvailable(urls, timeoutMs=4000){
+  for(const u of urls){
+    try{ const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),timeoutMs);
+      const r=await fetch(u,{method:'HEAD',cache:'no-store',signal:ctrl.signal}); clearTimeout(t);
+      if(r.ok) return u;
+    }catch{}
+  } return null;
+}
+/* 배경 */
+(async ()=>{
+  const bg = await pickFirstAvailable([
+    '/play/css/images/parchment-bg.jpg','/play/css/images/parchment-bg.webp',
+    '/css/images/parchment-bg.jpg','/images/parchment-bg.jpg'
+  ]);
+  document.body.style.background = bg ? `url('${bg}?v=4') center/cover fixed no-repeat` : '#111';
+})();
+/* BGM */
+(async ()=>{
+  const src = await pickFirstAvailable([
+    '/play/css/bgm/wall-theme.mp3','/css/bgm/wall-theme.mp3','/bgm/wall-theme.mp3'
+  ]);
+  window.BGM_SRC = src || '';
+  (function(){
+    const s={unlocked:false,ctx:null,el:null,trying:false};
+    function m(u){const a=document.createElement('audio');a.id='bgm';a.src=u;a.loop=true;a.preload='auto';a.playsInline=true;a.crossOrigin='anonymous';a.volume=0.55;document.body.appendChild(a);return a;}
+    async function u(){try{if(s.ctx&&s.ctx.state==='running')return;s.ctx=s.ctx||new (window.AudioContext||window.webkitAudioContext)();if(s.ctx.state!=='running')await s.ctx.resume();const o=s.ctx.createOscillator(),g=s.ctx.createGain();g.gain.value=0.0001;o.connect(g).connect(s.ctx.destination);o.start();o.stop(s.ctx.currentTime+0.03);}catch{}}
+    async function p(){if(s.trying||!window.BGM_SRC)return;s.trying=true;try{if(!s.el)s.el=m(window.BGM_SRC);await u();await s.el.play();s.unlocked=true;h();}catch{q();}finally{s.trying=false;}}
+    function arm(){p();['pointerdown','keydown','touchstart'].forEach(t=>document.removeEventListener(t,arm));}
+    ['pointerdown','keydown','touchstart'].forEach(t=>document.addEventListener(t,arm,{once:true}));
+    setTimeout(()=>{if(!s.unlocked)p();},1500);
+    document.addEventListener('visibilitychange',()=>{if(!s.el)return; if(document.hidden)s.el.pause(); else if(s.unlocked)s.el.play().catch(()=>{});});
+    let v=null; function q(){ if(v||!window.BGM_SRC)return; v=document.createElement('div'); v.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:9999;color:#fff'; v.innerHTML='<div style="background:#222;border:1px solid #555;padding:16px 18px;border-radius:12px;text-align:center;max-width:320px"><div style="font-size:16px;margin-bottom:8px">🔊 브금 허용</div><div style="font-size:13px;opacity:.9;margin-bottom:12px">한 번 눌러서 소리를 켭니다</div><button id="bgmAllow" style="padding:8px 12px;border:1px solid #777;background:#333;color:#fff;border-radius:10px;cursor:pointer">소리 켜기</button></div>'; document.body.appendChild(v); v.querySelector('#bgmAllow').addEventListener('click',p); }
+    function h(){ if(!v)return; v.remove(); v=null; }
+    window.switchBgm=function(n){ if(!s.el)s.el=m(window.BGM_SRC); if(s.el.src.endsWith(n))return; s.el.pause(); s.el.src=n; s.el.currentTime=0; if(s.unlocked)s.el.play().catch(()=>{q();}); };
+  })();
+})();
 
-/* 방명록 로딩 (전문) */
+/* 방명록 로딩 */
 const $=(s)=>document.querySelector(s);
 const listEl=$('#list'), prevBtn=$('#prev'), nextBtn=$('#next'), pageInfo=$('#pageInfo');
 let page=1, limit=20, isAdmin=false, total=0;
