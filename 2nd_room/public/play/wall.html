@@ -1,23 +1,25 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>방명록</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
-<style>
-  :root{ --ink:#1d130b; --rule:#b89a6a; }
-  *{box-sizing:border-box}
-  body{ margin:0; padding:40px; font-family:'Noto Serif KR',serif; line-height:1.75; color:#1d130b;
-    background:url('/css/images/parchment-bg.jpg?v=3') center/cover fixed no-repeat; }
-  .wrap{ max-width:860px; margin:0 auto; background:rgba(255,255,255,.86); border-radius:14px; padding:24px 20px; border:1px solid rgba(0,0,0,.08) }
-  h1{ margin:0 0 12px; text-align:center; font-size:26px }
-  .item{ border-bottom:1px solid #d8c6a3; padding:12px 6px }
-  .meta{ font-size:14px; color:#6d553e }
-  .text{ white-space:pre-wrap; margin-top:6px }
-  .ctrls{ display:flex; justify-content:space-between; align-items:center; margin-top:8px }
-  .btn{ padding:6px 10px; border:1px solid var(--rule); border-radius:8px; background:#0000000e; cursor:pointer }
-  .pager{ text-align:center; margin-top:14px }
-</style>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>방명록</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root{ --ink:#1d130b; --rule:#b89a6a; }
+    *{box-sizing:border-box}
+    body{
+      margin:0; padding:40px; font-family:'Noto Serif KR',serif; line-height:1.75; color:#1d130b;
+      background:url('/css/images/parchment-bg.jpg?v=3') center/cover fixed no-repeat;
+    }
+    .wrap{ max-width:860px; margin:0 auto; background:rgba(255,255,255,.86); border-radius:14px; padding:24px 20px; border:1px solid rgba(0,0,0,.08) }
+    h1{ margin:0 0 12px; text-align:center; font-size:26px }
+    .item{ border-bottom:1px solid #d8c6a3; padding:12px 6px }
+    .meta{ font-size:14px; color:#6d553e }
+    .text{ white-space:pre-wrap; margin-top:6px }
+    .ctrls{ display:flex; justify-content:space-between; align-items:center; margin-top:8px }
+    .btn{ padding:6px 10px; border:1px solid var(--rule); border-radius:8px; background:#0000000e; cursor:pointer }
+    .pager{ text-align:center; margin-top:14px }
+  </style>
 </head>
 <body>
   <div class="wrap">
@@ -30,48 +32,47 @@
     </div>
   </div>
 
-<script>
-window.BGM_SRC = '/css/bgm/wall-theme.mp3';
-</script>
-<script src="/css/bgm/player.js"></script>
+  <!-- BGM 먼저 선언 -->
+  <script>window.BGM_SRC = '/css/bgm/wall-theme.mp3';</script>
+  <script src="/css/bgm/player.js"></script>
 
-<script>
-const $=(s)=>document.querySelector(s);
-const listEl=$('#list'), prevBtn=$('#prev'), nextBtn=$('#next'), pageInfo=$('#pageInfo');
-let page=1, limit=20, isAdmin=false, total=0;
-function timefmt(ts){ try{ const d=new Date(ts); return d.toLocaleString(); }catch(_){ return '';} }
-async function load(){
-  const r=await fetch(`/api/lines?page=${page}&limit=${limit}`, {cache:'no-store'});
-  const d=await r.json();
-  isAdmin = !!d.admin; total = d.total||0; pageInfo.textContent = `페이지 ${page}`;
-  listEl.innerHTML = '';
-  (d.items||[]).forEach((it)=>{
-    const n = it.number ?? it.id;
-    const div=document.createElement('div'); div.className='item';
-    const esc = s => (s||'').replace(/[&<>]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m]));
-    div.innerHTML = `
-      <div class="meta">탈출자 ${n} · 원인: <b>${it.cause||'—'}</b> · 단계 ${it.step??0} · ${timefmt(it.ts)}</div>
-      <div class="text">${esc(it.text)}</div>
-      <div class="ctrls">
-        <span class="meta">src: ${it.src||'user'}</span>
-        ${isAdmin? `<button data-id="${it.id}" class="btn del">삭제</button>` : ``}
-      </div>`;
-    listEl.appendChild(div);
-  });
-  if(isAdmin){
-    listEl.querySelectorAll('.del').forEach(b=>{
-      b.onclick=async ()=>{
-        const id = +b.getAttribute('data-id');
-        if(!confirm(`정말 삭제할까요? #${id}`)) return;
-        const r=await fetch(`/api/lines?id=${id}`,{method:'DELETE'});
-        if(r.ok){ alert('삭제됨(번호 재정렬)'); load(); }
-      };
-    });
-  }
-}
-prevBtn.onclick=()=>{ if(page>1){ page--; load(); } };
-nextBtn.onclick=()=>{ page++; load(); };
-load();
-</script>
+  <script>
+    const $=(s)=>document.querySelector(s);
+    const listEl=$('#list'), prevBtn=$('#prev'), nextBtn=$('#next'), pageInfo=$('#pageInfo');
+    let page=1, limit=20, isAdmin=false, total=0;
+    function timefmt(ts){ try{ const d=new Date(ts); return d.toLocaleString(); }catch(_){ return '';} }
+    async function load(){
+      const r=await fetch(`/api/lines?page=${page}&limit=${limit}`, {cache:'no-store'});
+      const d=await r.json();
+      isAdmin = !!d.admin; total = d.total||0; pageInfo.textContent = `페이지 ${page}`;
+      listEl.innerHTML = '';
+      (d.items||[]).forEach((it)=>{
+        const n = it.number ?? it.id;
+        const div=document.createElement('div'); div.className='item';
+        const esc = s => (s||'').replace(/[&<>]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m]));
+        div.innerHTML = `
+          <div class="meta">탈출자 ${n} · 원인: <b>${it.cause||'—'}</b> · 단계 ${it.step??0} · ${timefmt(it.ts)}</div>
+          <div class="text">${esc(it.text)}</div>
+          <div class="ctrls">
+            <span class="meta">src: ${it.src||'user'}</span>
+            ${isAdmin? `<button data-id="${it.id}" class="btn del">삭제</button>` : ``}
+          </div>`;
+        listEl.appendChild(div);
+      });
+      if(isAdmin){
+        listEl.querySelectorAll('.del').forEach(b=>{
+          b.onclick=async ()=>{
+            const id = +b.getAttribute('data-id');
+            if(!confirm(`정말 삭제할까요? #${id}`)) return;
+            const r=await fetch(`/api/lines?id=${id}`,{method:'DELETE'});
+            if(r.ok){ alert('삭제됨(번호 재정렬)'); load(); }
+          };
+        });
+      }
+    }
+    prevBtn.onclick=()=>{ if(page>1){ page--; load(); } };
+    nextBtn.onclick=()=>{ page++; load(); };
+    load();
+  </script>
 </body>
 </html>
