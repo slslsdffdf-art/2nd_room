@@ -1,0 +1,10 @@
+{
+  "bg": "/css/images/chess-room-bg.jpg",
+  "image": "/css/images/chess-etching.webp",
+  "story": "낡은 체스판이 놓여있다. 그 위에는 다음 수를 두지 않을 시 새로운 체스말이 생겨난다. 라고 적혀있다. 이것이 무엇을 의미하는지 당신은 알고 있을 것이다.",
+  "choices": {
+    "L": {"label":"나이트를 전진시킨다","correct":true,"deathCause":""},
+    "F": {"label":"퀸으로 밀어붙인다","correct":false,"deathCause":"퀸이 왕을 씹어 삼켰다. 다른 마들은 새로운 왕을 선출한다. 당신의 정신이 아득해진다."},
+    "R": {"label":"말을 전부 뒤로 뺀다","correct":false,"deathCause":"비어있는 왕국은 약탈자들의 손아귀로 넘어가고, 후퇴를 지시한 지휘관의 목이 달아난다."}
+  }
+}

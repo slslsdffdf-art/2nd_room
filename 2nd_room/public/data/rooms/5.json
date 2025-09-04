@@ -1,0 +1,10 @@
+{
+  "bg": "/css/images/clocktower-bg.jpg",
+  "image": "/css/images/clock-etching.webp",
+  "story": "거대한 회중시계가 방 가운데 놓여져 있다. 시계의 초침은 반시계 방향으로 돌아간다. 당신은 어떻게 하겠는가.",
+  "choices": {
+    "L": {"label":"거꾸로 도는 초침을 멈춘다","correct":true,"deathCause":""},
+    "F": {"label":"시계의 침들을 조작해 의도적으로 종을 울리게 만든다.","correct":false,"deathCause":"종소리와 함께 심장이 멎었다."},
+    "R": {"label":"태엽을 더 감는다","correct":false,"deathCause":"시간이 압축되어 몸이 찌그러졌다."}
+  }
+}

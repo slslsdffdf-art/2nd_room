@@ -1,0 +1,10 @@
+{
+  "bg": "/css/images/library-bg.jpg",
+  "image": "/css/images/library-etching.webp",
+  "story": "사서 없는 서고. 당신은 이 책들 중 하나를 열어 읽어야만 한다.",
+  "choices": {
+    "L": {"label":"금서칸을 연다","correct":false,"deathCause":"책을 펼치자, 활자가 당신의 폐를 가득 메웠다."},
+    "F": {"label":"목차만 훑는다","correct":true,"deathCause":""},
+    "R": {"label":"사다리를 타고 올라 가장 윗칸에 있는 책을 읽는다. ","correct":false,"deathCause":"본디 숨기고 싶은 것은 가장 눈에 띄지 않는 곳에 두는 법이다. 아둔한 녀석아."}
+  }
+}

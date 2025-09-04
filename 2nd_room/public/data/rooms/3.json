@@ -1,0 +1,10 @@
+{
+  "bg": "/css/images/doll-workshop-bg.jpg",
+  "image": "/css/images/doll-etching.webp",
+  "story": "유리눈의 인형들이 제작대를 둘러싼다. 살펴보니 인형 하나의 눈이 텅 비어있다. 당신은 어떻게 하겠는가.",
+  "choices": {
+    "L": {"label":"빈 소켓에 눈알을 끼운다","correct":true,"deathCause":""},
+    "F": {"label":"실을 당겨 목을 고정한다","correct":false,"deathCause":"실이 당신의 목을 고정했다. 당신은 목을 부여잡고 몸부림치다, 결국 정신을 잃는다."},
+    "R": {"label":"인형의 등을 연다","correct":false,"deathCause":"순간 당신은 자신의 등쪽에서 끔찍한 격통이 느껴지는 것을 인지했다."}
+  }
+}

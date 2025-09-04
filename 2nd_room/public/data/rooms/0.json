@@ -1,0 +1,10 @@
+{
+  "bg": "/css/images/parchment-bg.jpg",
+  "image": "/css/images/intro-etching.webp",
+  "story": "복도의 초입. 당신은 이곳에 도전하는 첫번째 도전자다. 당신은 선택해야 한다. 본디, 선봉에 선다는 것은 그런 것이다.",
+  "choices": {
+    "L": {"label":"왼쪽 문을 연다","correct":false,"deathCause":"허락없이 그들의 방에 들어서는 것은 무척이나 무례한 행동이다."},
+    "F": {"label":"정면 문을 두드린다","correct":true,"deathCause":""},
+    "R": {"label":"오른쪽 문에 귀 기울인다","correct":false,"deathCause":"문틈의 손이 당신의 목을 움켜쥐고 안쪽으로 끌어당긴다."}
+  }
+}
