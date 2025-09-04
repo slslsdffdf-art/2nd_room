@@ -41,17 +41,19 @@ export async function onRequest({ request, env }) {
     return json({ result: 'dead', cause: act.cause || '사망', step: act.step || 0, remain_sec: remain });
   }
 
-  // 판정: 1/3 확률로 성공(advance), 2/3는 사망
+  // 판정: 1/3 성공(advance), 2/3 사망
   const ok = Math.floor(Math.random() * 3) === 0;
   if (ok) {
     act.step = (act.step || 0) + 1;
     act.updated = now();
     act.select_deadline = now() + 90 * 1000; // 다음 선택 제한(서버 기준)
     await LINES.put('q:active', JSON.stringify(act));
+    // ★ 글로벌 단계 갱신: 다음 도전자도 이 단계에서 시작
+    await LINES.put('q:step', String(act.step));
     return json({ result: 'advance', step: act.step });
   }
 
-  // 사망 처리
+  // 사망 처리 (글로벌 단계는 그대로 유지)
   act.dead = true;
   act.cause = dir === 'L' ? '왼쪽 문' : dir === 'F' ? '정면 문' : '오른쪽 문';
   act.lw_deadline = now() + lwLimit * 1000;
