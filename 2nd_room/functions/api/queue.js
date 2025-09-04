@@ -20,6 +20,15 @@ export async function onRequest({ request, env }){
   const ticket = getCookie(request,'q2') || '';
   if (!ticket) return json({ error:'no_ticket' }, 401);
 
+  async function getGlobalStep() {
+    const s = await LINES.get('q:step');
+    const n = s ? parseInt(s,10) : 0;
+    return Number.isFinite(n) && n>=0 ? n : 0;
+  }
+  async function setGlobalStep(n) {
+    await LINES.put('q:step', String(Math.max(0, n|0)));
+  }
+
   async function finalizeActiveIfTimedOut() {
     const raw = await LINES.get('q:active'); let act = raw?JSON.parse(raw):null;
     if (!act || !act.dead) return false;
@@ -52,7 +61,7 @@ export async function onRequest({ request, env }){
 
     act.dead = true;
     act.cause = act.cause || '시간 초과';
-    act.step = act.step || 0;
+    act.step = act.step || (await getGlobalStep());
     act.lw_deadline = now() + lwLimit*1000;
     await LINES.put('q:active', JSON.stringify(act));
     return act;
@@ -78,11 +87,12 @@ export async function onRequest({ request, env }){
     const stale = act && !act.dead && (now() - (act.updated||act.since||0) > 30000);
     if (stale) { act=null; await LINES.delete('q:active'); }
 
-    // active 없으면 선두 입장
+    // active 없으면 선두 입장 (※ 직전 단계 유지)
     if (!act && q.length>0) {
       const head=q.shift();
       await LINES.put('q:queue', JSON.stringify(q));
-      act = { ticket: head, since: now(), updated: now(), dead:false, select_deadline: now()+selLimit*1000 };
+      const curStep = await getGlobalStep(); // ← 여기
+      act = { ticket: head, since: now(), updated: now(), dead:false, step: curStep, select_deadline: now()+selLimit*1000 };
       await LINES.put('q:active', JSON.stringify(act));
     }
 
@@ -107,7 +117,7 @@ export async function onRequest({ request, env }){
       setCookie(H,'auth2','ok',{ httpOnly:true, maxAge:60*60*2 });
       const remain = Math.max(0, Math.floor(((act.select_deadline||now()) - now())/1000));
       return json(
-        { state:'active', position:0, est_sec:0, select_remain_sec: remain, size },
+        { state:'active', position:0, est_sec:0, select_remain_sec: remain, size, step: act.step||0 },
         200,
         Object.fromEntries(H.entries())
       );
