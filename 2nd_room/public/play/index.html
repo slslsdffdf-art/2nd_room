@@ -4,6 +4,7 @@
 <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>끝없는 복도</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap" rel="stylesheet">
 <style>
   :root{ --ink:#1d130b; --rule:#b89a6a; --veil:rgba(0,0,0,.45); }
   *{box-sizing:border-box}
@@ -17,8 +18,16 @@
   .vignette-on:after{ box-shadow:inset 0 0 260px rgba(0,0,0,.65); }
   .wrap{ max-width:760px; margin:0 auto; background:rgba(255,255,255,.84); border-radius:14px; padding:26px 22px; border:1px solid rgba(0,0,0,.08) }
   h1{ text-align:center; font-size:28px; margin:0 0 10px; letter-spacing:.03em }
-  .hint{ background:linear-gradient(180deg,#fff8ea,#f7efe2); border:1px solid var(--rule); border-radius:10px; padding:12px 14px; margin:10px 0 16px }
-  .small{ font-size:14px; color:#6d553e; margin-bottom:6px }
+
+  /* 스토리 박스: 기존 hint와 구분 */
+  .story{ background:linear-gradient(180deg,#fffdf8,#f7efe2); border:1px solid var(--rule); border-radius:10px; padding:12px 14px; margin:8px 0 12px; }
+  .story .small{ font-size:14px; color:#6d553e; margin-bottom:6px }
+
+  /* 직전 유언 박스: 손글씨 느낌, 가독↑ */
+  .hint{ background:linear-gradient(180deg,#fff8ea,#f3e7d5); border:1px solid var(--rule); border-radius:10px; padding:10px 12px; margin:12px 0 16px }
+  .hint .small{ font-size:13px; color:#6d553e; margin-bottom:6px }
+  .lasthint{ font-family:'Nanum Pen Script', cursive; font-size:22px; line-height:1.35; color:#3a2414; white-space:pre-wrap; }
+
   .btn{ display:inline-block; width:100%; padding:14px; margin:8px 0; text-align:center; border:1px solid var(--rule); background:#00000012; cursor:pointer; border-radius:10px; font-size:18px; transition:transform .04s ease, box-shadow .12s ease; }
   .btn:active{ transform:translateY(1px) scale(.998); filter:contrast(.98) }
   .btn:disabled{ opacity:.5; cursor:not-allowed }
@@ -36,9 +45,16 @@
   <div class="wrap">
     <h1>끝없는 복도</h1>
 
+    <!-- 스토리(방 설명) -->
+    <div id="storyBox" class="story hidden">
+      <div class="small">[이 방의 기척]</div>
+      <div id="storyText">—</div>
+    </div>
+
+    <!-- 직전 유언 -->
     <div id="hintBox" class="hint hidden">
       <div class="small">[직전 도전자의 유언]</div>
-      <div id="hintText">—</div>
+      <div id="hintText" class="lasthint">—</div>
     </div>
 
     <p class="center" id="stepInfo" style="font-size:18px">방 0</p>
@@ -76,6 +92,7 @@
   const chooseBox=$('#chooseBox'), aliveBox=$('#aliveBox'), deathBox=$('#deathBox');
   const causeEl=$('#cause'), stepInfo=$('#stepInfo'), timerEl=$('#timer');
   const saveBtn=$('#saveLWBtn'), saveStatus=$('#saveStatus'), lastText=$('#lastText');
+  const storyBox=$('#storyBox'), storyText=$('#storyText');
   const hintBox=$('#hintBox'), hintText=$('#hintText'), limitInfo=$('#limitInfo');
 
   let hbTimer=null, pollTimer=null, selectTicker=null;
@@ -123,23 +140,27 @@
     }catch{}
   }
 
-  // === A안: 현재 방 파일 기반으로 스토리/배경/라벨 주입 ===
+  // === A안: 현재 방 파일 기반 스토리/배경/라벨 주입 ===
   async function loadRoomAndApply(){
     try{
       const r = await fetch('/api/choose?init=1', {cache:'no-store'});
       if(!r.ok) return;
       const d = await r.json();
 
-      // step/타이머 정보
+      // step/타이머
       stepInfo.textContent = '방 ' + (d.step||0);
       lwLimit = d.lw_limit_sec || lwLimit; limitInfo.textContent = `${lwLimit}초`;
 
-      // 스토리 + 직전 유언
+      // 스토리(별도 박스)
       if (d.room && d.room.story){
-        const hint = (d.lastHint && d.lastHint.text) ? `\n\n—[직전 유언] ${d.lastHint.text}` : '';
-        hintText.textContent = d.room.story + hint;
-        hintBox.classList.remove('hidden');
-      } else if (d.lastHint && d.lastHint.text){
+        storyText.textContent = d.room.story;
+        storyBox.classList.remove('hidden');
+      } else {
+        storyBox.classList.add('hidden');
+      }
+
+      // 직전 유언(손글씨 박스)
+      if (d.lastHint && d.lastHint.text){
         hintText.textContent = d.lastHint.text;
         hintBox.classList.remove('hidden');
       } else {
@@ -175,7 +196,6 @@
     const d = await r.json();
     stepInfo.textContent = '방 ' + (d.step||0);
 
-    // A안 주입
     await loadRoomAndApply();
 
     startHB();
@@ -186,6 +206,9 @@
   function disableChoice(v){ [btnL,btnF,btnR].forEach(b=>b.disabled=v); }
 
   async function choose(dir){
+    // 모바일 BGM 언락을 버튼 클릭에서 확실히
+    if (window.__bgmUnlock) await window.__bgmUnlock();
+
     disableChoice(true); shiver(chooseBox);
     try{
       const r=await fetch('/api/choose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dir})});
@@ -214,15 +237,16 @@
   }
 
   function showDeath(cause){
-    if (!deathShown && cause) causeEl.textContent = cause; // 사망 원인 덮어쓰기 방지
+    if (!deathShown && cause) causeEl.textContent = cause;
     chooseBox.classList.add('hidden'); aliveBox.classList.add('hidden'); deathBox.classList.remove('hidden');
   }
 
-  $('#btnNext').onclick=()=>{ aliveBox.classList.add('hidden'); chooseBox.classList.remove('hidden'); disableChoice(false); loadRoomAndApply(); };
+  $('#btnNext').onclick=()=>{ if (window.__bgmUnlock) window.__bgmUnlock(); aliveBox.classList.add('hidden'); chooseBox.classList.remove('hidden'); disableChoice(false); loadRoomAndApply(); };
   btnL.onclick=()=>choose('L'); btnF.onclick=()=>choose('F'); btnR.onclick=()=>choose('R');
 
   async function submitLastWords(){
     if (saveBtn.disabled) return;
+    if (window.__bgmUnlock) window.__bgmUnlock(); // 텍스트 입력만 하고 소리 안 날 수 있어 한 번 더
     saveBtn.disabled=true; saveStatus.textContent='저장중…';
     try{
       const r=await fetch('/api/lastwords',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:lastText.value.trim()})});
@@ -237,6 +261,9 @@
     }catch{ saveStatus.textContent='네트워크 오류'; saveBtn.disabled=false; }
   }
   document.getElementById('saveLWBtn').onclick=submitLastWords;
+
+  // 초기 진입 시도: 터치 없이도 언락돼 있으면 바로 재생
+  if (window.__bgmUnlock) setTimeout(()=>window.__bgmUnlock(), 120);
 
   init();
 </script>
