@@ -1,4 +1,6 @@
 // /functions/api/choose.js
+// A안 + 방 파일 폴백 로더 + 결정적(시드) 사망문장 생성기 + 중복회피 + 에러내성
+
 const json = (x, s = 200, h = {}) =>
   new Response(JSON.stringify(x), { status: s, headers: { 'Content-Type': 'application/json', ...h } });
 
@@ -28,52 +30,104 @@ async function fetchRoomByStep(request, step) {
   return null;
 }
 
-// ===== 사망 원인 바리에이션 =====
-function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-const POOLS = {
-  generic: [
-    '갑작스레 의식을 잃고 쓰러졌다.',
-    '미친 듯이 발작하다 사망했다.',
-    '자신의 이름을 부르짖으며 끝내 쓰러졌다.',
-    '무언가에 잠식된 듯, 서서히 멎었다.',
-    '비명을 지르지도 못한 채 사라졌다.',
-    '피부를 찢어가며 울부짖다가 멈췄다.',
-    '숨이 거꾸로 끌려 나간 듯 질식했다.',
-    '눈이 뒤집힌 채 그대로 굳었다.'
+// ===== Robust death text generator (millions of combos) =====
+function xorshift32(seed){ let x=seed|0; return ()=>{ x^=x<<13; x^=x>>>17; x^=x<<5; return (x>>>0)/4294967296; } }
+function h32(str){ let h=2166136261>>>0; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=(h*16777619)>>>0; } return h>>>0; }
+function pickR(rng, arr){ return arr[Math.floor(rng()*arr.length)] }
+
+const CORE = {
+  template: [
+    '{S} {ADV}{V}, {CAUSE}{TAIL}',
+    '{LOC}에서 {S} {ADV}{V}. {DETAIL}{TAIL}',
+    '{S} {CAUSE} 탓에 {ADV}{V}{TAIL}',
+    '아무도 보지 못한 사이, {S} {V}. {DETAIL}{TAIL}',
+    '{S} {SENSE} {ADV}{V}{TAIL}',
+    '{S} {CAUSE}로 {V}. {LOC}에는 {TRACE}만 남았다{TAIL}'
   ],
-  fall: ['발 아래가 꺼지며 어둠 속으로 추락했다.','끝없는 계단 사이로 미끄러져 사라졌다.'],
-  drown: ['물 한 방울 없는 곳에서 익사했다.','보이지 않는 물에 폐가 가득 찼다.'],
-  madness: ['갑자기 신을 부르짖으며 자신의 피부를 찢었다.','자신과 다투다 스스로 목을 조르기 시작했다.'],
-  beast: ['보이지 않는 이빨에 갈가리 찢겼다.','무언가가 종이를 구기듯 몸을 접어버렸다.'],
-  mechanism: ['보이지 않는 톱니 사이에 끼여 압축되었다.','철제 소음과 함께 형태를 잃었다.'],
-  ritual: ['알 수 없는 의식의 제물이 되었다.','낯선 문장이 몸에서 흘러나왔다.'],
-  mirror: ['거울 속 자신과 자리를 바꾸었다.','반사된 무언가가 먼저 숨을 멈췄다.']
+  style: {
+    report:    (t)=>t.replace(/\.$/,'했다.'),
+    witness:   (t)=>'나는 보았다. '+t,
+    folk:      (t)=>t.replace('{TAIL}','다…'),
+    short:     (t)=>t.replace(/[,，]?\s*{TAIL}/,'')
+  },
+  subject:   ['그', '도전자', '사람', '누군가', '그림자', '몸'],
+  verb:      ['멎었다', '쓰러졌다', '사라졌다', '질식했다', '굳었다', '꺾였다', '찢어졌다', '뒤틀렸다'],
+  adv:       ['갑자기 ', '서서히 ', '소리 없이 ', '격렬하게 ', '어느 순간 '],
+  cause:     {
+    generic:   ['이유 없이', '설명할 수 없는 압박에', '알 수 없는 주문에', '그늘이 스며들어'],
+    fall:      ['발밑이 비어', '끝없는 계단에 쓸려', '구덩이에 빨려들어'],
+    drown:     ['보이지 않는 물에 잠겨', '마른 공기 속에서 익사해', '폐에 찬 물 때문에'],
+    mechanism: ['보이지 않는 톱니에 끼어', '철제 압력에 눌려', '태엽이 감기며'],
+    beast:     ['이빨에 물려', '보이지 않는 발톱에 베여', '입 안에서 씹혀'],
+    madness:   ['자기 이름을 부르짖다', '자신을 조르다', '피부를 찢다'],
+    ritual:    ['문장 하나가 몸에서 흘러나와', '제물로 선택돼', '낯선 의식의 한 가운데서']
+  },
+  detail:    ['피부는 종이처럼 구겨졌다', '숨이 거꾸로 끌려나갔다', '눈은 뒤집힌 채 멎었다', '비명은 나오지 않았다'],
+  loc:       ['문틈', '바닥', '계단참', '벽 그림자', '천장 바로 아래', '거울 앞', '문 뒤'],
+  sense:     ['차가운 바람을 맞으며', '어둠을 삼키듯', '누군가의 숨소리를 들으며', '낡은 금속 냄새와 함께'],
+  trace:     ['자국 하나', '구겨진 종잇조각', '희미한 긁힌 자국', '젖은 발자국', '낡은 실']
 };
-function inferTag(base='') {
+
+function buildDeath(rng, tag='generic'){
+  const tpl = pickR(rng, CORE.template);
+  const styleKey = pickR(rng, ['report','witness','folk','short']);
+  const fill = {
+    S: pickR(rng, CORE.subject),
+    V: pickR(rng, CORE.verb),
+    ADV: pickR(rng, CORE.adv),
+    CAUSE: pickR(rng, (CORE.cause[tag]||CORE.cause.generic)),
+    DETAIL: pickR(rng, CORE.detail),
+    LOC: pickR(rng, CORE.loc),
+    SENSE: pickR(rng, CORE.sense),
+    TRACE: pickR(rng, CORE.trace),
+    TAIL: '.'
+  };
+  let out = tpl.replace(/\{([A-Z]+)\}/g, (_,k)=>fill[k]||'');
+  out = CORE.style[styleKey](out);
+  out = out.replace(/\s+([,.…])/g,'$1').replace(/\s{2,}/g,' ').trim();
+  return out;
+}
+
+function inferTagAdvanced(base='', tags=[]){
+  if (Array.isArray(tags) && tags.length) return tags[0]; // 방/선택지 지정 우선
   const b = String(base);
   if (/[물|수조|익사|강|바다]/.test(b)) return 'drown';
   if (/[사다리|낭떠러지|바닥|추락|구덩이]/.test(b)) return 'fall';
   if (/[거울|반사]/.test(b)) return 'mirror';
-  if (/[톱니|기계|태엽|장치]/.test(b)) return 'mechanism';
+  if (/[톱니|기계|태엽|장치|철]/.test(b)) return 'mechanism';
   if (/[광기|미쳐|정신|신|제단|의식]/.test(b)) return 'madness';
-  if (/[짐승|이빨|손|발톱|괴물]/.test(b)) return 'beast';
+  if (/[짐승|이빨|발톱|괴물]/.test(b)) return 'beast';
   if (/[의식|제물|주문|봉인]/.test(b)) return 'ritual';
   return 'generic';
 }
-function variedDeath(base) {
-  if (typeof base === 'string' && base.trim().startsWith('!')) {
-    const tag = base.trim().replace(/^!+/, '').toLowerCase();
-    const pool = POOLS[tag] || POOLS.generic;
-    return pick(pool);
+
+// 메인 생성기: baseCause(문자열) 또는 tags(array) 받음, seed로 결정적 생성 + 최근중복 회피
+async function generateDeathText({ baseCause='', tags=[], seedStr='', env }) {
+  const seed = h32(seedStr || (baseCause + '|' + (tags.join(','))));
+  const rng = xorshift32(seed);
+  const tag = (typeof baseCause==='string' && baseCause.trim().startsWith('!'))
+    ? baseCause.trim().replace(/^!+/,'').toLowerCase()
+    : inferTagAdvanced(baseCause, tags);
+
+  const key = 'dedup:death:last';
+  let setStr = null;
+  try { setStr = await env.LINES.get(key); } catch(e){ console.error('[choose] KV get dedup error', e); }
+  let set = setStr ? setStr.split(',') : [];
+
+  let out = '';
+  for (let i=0;i<3;i++){
+    out = buildDeath(rng, tag);
+    const h = h32(out).toString(36);
+    if (!set.includes(h)) {
+      set.push(h);
+      if (set.length>10000) set = set.slice(-10000);
+      try { await env.LINES.put(key, set.join(',')); } catch(e){ console.error('[choose] KV put dedup error', e); }
+      break;
+    }
   }
-  const tag = inferTag(base);
-  const pool = POOLS[tag] || POOLS.generic;
-  if (Math.random() < 0.3 && base) {
-    const s = String(base).replace(/\s+/g,' ').trim().replace(/[.]+$/,'');
-    return s + (/[다]$/.test(s) ? '' : '') + ' 사망했다.';
-  }
-  return pick(pool);
+  return out;
 }
+// ===== end robust generator =====
 
 // ===== KV 안전 래퍼 (바인딩 누락/오류에도 500 방지) =====
 function safeKV(env) {
@@ -95,7 +149,7 @@ export async function onRequest({ request, env }) {
 
   const url = new URL(request.url);
 
-  // ===== 초기 로드 =====
+  // ===== 초기 로드 (클라가 스토리/유언/라벨 받아감) =====
   if (request.method === 'GET' && url.searchParams.get('init') === '1') {
     try {
       const [actRaw, lastRaw] = await Promise.all([LINES.get('q:active'), LINES.get('lastword:latest')]);
@@ -122,7 +176,6 @@ export async function onRequest({ request, env }) {
       });
     } catch (e) {
       console.error('[choose] GET init failed:', e);
-      // 절대 500으로 죽이지 말고 빈 방으로 응답
       return json({ step: 0, lastHint: null, lw_limit_sec: lwLimit, room: null });
     }
   }
@@ -149,8 +202,8 @@ export async function onRequest({ request, env }) {
     const stepKey = (act.step || 0);
     const room = await fetchRoomByStep(request, stepKey);
 
+    // 데이터 없으면 1/3 백업룰
     if (!room || !room.choices || !room.choices[dir]) {
-      // 데이터 없을 땐 기존 1/3 룰로 백업
       const ok = Math.floor(Math.random() * 3) === 0;
       if (ok) {
         act.step = (act.step || 0) + 1;
@@ -161,7 +214,12 @@ export async function onRequest({ request, env }) {
         return json({ result: 'advance', step: act.step });
       } else {
         act.dead = true;
-        act.cause = variedDeath('');
+        act.cause = await generateDeathText({
+          baseCause: '',
+          tags: [],
+          seedStr: `${act.ticket}|${act.step}|${Date.now()}`,
+          env
+        });
         act.lw_deadline = now() + lwLimit * 1000;
         await LINES.put('q:active', JSON.stringify(act));
         return json({ result: 'dead', cause: act.cause, step: act.step || 0, remain_sec: lwLimit });
@@ -177,12 +235,17 @@ export async function onRequest({ request, env }) {
       await LINES.put('q:active', JSON.stringify(act));
       await LINES.put('q:step', String(act.step));
 
+      // 이벤트 룸 처리
       if (room.event) {
         if (room.event.type === 'hall-of-fame') {
-          await LINES.put(`hof:${ticket}`, JSON.stringify({ ts: Date.now(), step: act.step }), { expirationTtl: 60*60*24*365 });
+          try {
+            await LINES.put(`hof:${ticket}`, JSON.stringify({ ts: Date.now(), step: act.step }), { expirationTtl: 60*60*24*365 });
+          } catch(e){ console.error('[choose] hof put error', e); }
         }
         if (room.event.type === 'inventory' && room.event.arg) {
-          await LINES.put(`inv:${ticket}:${room.event.arg}`, '1', { expirationTtl: 60*60*24*30 });
+          try {
+            await LINES.put(`inv:${ticket}:${room.event.arg}`, '1', { expirationTtl: 60*60*24*30 });
+          } catch(e){ console.error('[choose] inv put error', e); }
         }
         if (room.event.type === 'skip' && room.event.arg) {
           const to = parseInt(room.event.arg, 10);
@@ -197,10 +260,16 @@ export async function onRequest({ request, env }) {
       return json({ result: 'advance', step: act.step, event: room.event || null });
     }
 
-    // 오답 → 사망(바리에이션)
+    // 오답 → 조립형 사망문장
     const base = choice.deathCause || '';
+    const tags = Array.isArray(choice.deathTags) ? choice.deathTags : [];
     act.dead = true;
-    act.cause = variedDeath(base);
+    act.cause = await generateDeathText({
+      baseCause: base,
+      tags,
+      seedStr: `${act.ticket}|${act.step}|${dir}`, // 같은 사건은 동일 문장
+      env
+    });
     act.lw_deadline = now() + lwLimit * 1000;
     await LINES.put('q:active', JSON.stringify(act));
     return json({ result: 'dead', cause: act.cause, step: act.step || 0, remain_sec: lwLimit });
@@ -210,4 +279,5 @@ export async function onRequest({ request, env }) {
     // 실패시에도 500 방지
     return json({ error: 'choose_failed' }, 200);
   }
-  }
+}
+```0
