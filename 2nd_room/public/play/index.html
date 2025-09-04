@@ -1,29 +1,36 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>끝없는 복도</title>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
-  <style>
-    :root{ --ink:#1d130b; --rule:#b89a6a; --veil:rgba(0,0,0,.45); }
-    *{box-sizing:border-box}
-    body{ margin:0; padding:40px; font-family:'Noto Serif KR',serif; line-height:1.75; color:var(--ink);
-      background:url('/css/images/parchment-bg.jpg?v=3') center/cover fixed no-repeat; position:relative; }
-    body:after{ content:""; position:fixed; inset:0; pointer-events:none; box-shadow:inset 0 0 220px rgba(0,0,0,.55); }
-    .vignette-on:after{ box-shadow:inset 0 0 260px rgba(0,0,0,.65); }
-    .wrap{ max-width:760px; margin:0 auto; background:rgba(255,255,255,.84); border-radius:14px; padding:26px 22px; border:1px solid rgba(0,0,0,.08) }
-    h1{ text-align:center; font-size:28px; margin:0 0 10px; letter-spacing:.03em }
-    .hint{ background:linear-gradient(180deg,#fff8ea,#f7efe2); border:1px solid var(--rule); border-radius:10px; padding:12px 14px; margin:10px 0 16px }
-    .small{ font-size:14px; color:#6d553e; margin-bottom:6px }
-    .btn{ display:inline-block; width:100%; padding:14px; margin:8px 0; text-align:center; border:1px solid var(--rule); background:#00000012; cursor:pointer; border-radius:10px; font-size:18px }
-    .btn:disabled{ opacity:.5; cursor:not-allowed }
-    .center{text-align:center}.muted{ color:#6d553e; font-size:14px }
-    textarea{ width:100%; min-height:120px; resize:vertical; padding:10px; font-size:16px }
-    .status{ font-size:14px; color:#795548; margin-left:8px }
-    .sep{ height:1px; background:var(--rule); opacity:.5; margin:16px 0 }
-    .hidden{ display:none !important }
-    .shiver{ animation:shiver .35s linear 1 } @keyframes shiver{ 0%,100%{transform:translate(0,0)} 20%{transform:translate(-1px,0)} 40%{transform:translate(1px,0)} 60%{transform:translate(-1px,0)} 80%{transform:translate(1px,0)} }
-  </style>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>끝없는 복도</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{ --ink:#1d130b; --rule:#b89a6a; --veil:rgba(0,0,0,.45); }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:40px;
+    font-family:'Noto Serif KR',serif; line-height:1.75; color:var(--ink);
+    background:url('/css/images/parchment-bg.jpg?v=3') center/cover fixed no-repeat;
+    position:relative;
+  }
+  body:after{ content:""; position:fixed; inset:0; pointer-events:none; box-shadow:inset 0 0 220px rgba(0,0,0,.55); }
+  .vignette-on:after{ box-shadow:inset 0 0 260px rgba(0,0,0,.65); }
+  .wrap{ max-width:760px; margin:0 auto; background:rgba(255,255,255,.84); border-radius:14px; padding:26px 22px; border:1px solid rgba(0,0,0,.08) }
+  h1{ text-align:center; font-size:28px; margin:0 0 10px; letter-spacing:.03em }
+  .hint{ background:linear-gradient(180deg,#fff8ea,#f7efe2); border:1px solid var(--rule); border-radius:10px; padding:12px 14px; margin:10px 0 16px }
+  .small{ font-size:14px; color:#6d553e; margin-bottom:6px }
+  .btn{ display:inline-block; width:100%; padding:14px; margin:8px 0; text-align:center; border:1px solid var(--rule); background:#00000012; cursor:pointer; border-radius:10px; font-size:18px; transition:transform .04s ease, box-shadow .12s ease; }
+  .btn:active{ transform:translateY(1px) scale(.998); filter:contrast(.98) }
+  .btn:disabled{ opacity:.5; cursor:not-allowed }
+  .center{ text-align:center }
+  .muted{ color:#6d553e; font-size:14px }
+  textarea{ width:100%; min-height:120px; resize:vertical; padding:10px; font-size:16px }
+  .status{ font-size:14px; color:#795548; margin-left:8px }
+  .sep{ height:1px; background:var(--rule); opacity:.5; margin:16px 0 }
+  .hidden{ display:none !important }
+  .shiver{ animation:shiver .35s linear 1 }
+  @keyframes shiver{ 0%,100%{transform:translate(0,0)} 20%{transform:translate(-1px,0)} 40%{transform:translate(1px,0)} 60%{transform:translate(-1px,0)} 80%{transform:translate(1px,0)} }
+</style>
 </head>
 <body>
   <div class="wrap">
@@ -63,81 +70,175 @@
   <script>window.BGM_SRC = '/css/bgm/gameplay-theme.mp3';</script>
   <script src="/css/bgm/player.js"></script>
 
-  <script>
-    const $ = (s)=>document.querySelector(s);
-    const btnL=$('#btnL'), btnF=$('#btnF'), btnR=$('#btnR');
-    const chooseBox=$('#chooseBox'), aliveBox=$('#aliveBox'), deathBox=$('#deathBox');
-    const causeEl=$('#cause'), stepInfo=$('#stepInfo'), timerEl=$('#timer');
-    const saveBtn=$('#saveLWBtn'), saveStatus=$('#saveStatus'), lastText=$('#lastText');
-    const hintBox=$('#hintBox'), hintText=$('#hintText'), limitInfo=$('#limitInfo');
-    let hbTimer=null, pollTimer=null, selectTicker=null;
-    let selectDeadline=0, lwLimit=45, deathShown=false;
+<script>
+  const $ = (s)=>document.querySelector(s);
+  const btnL=$('#btnL'), btnF=$('#btnF'), btnR=$('#btnR');
+  const chooseBox=$('#chooseBox'), aliveBox=$('#aliveBox'), deathBox=$('#deathBox');
+  const causeEl=$('#cause'), stepInfo=$('#stepInfo'), timerEl=$('#timer');
+  const saveBtn=$('#saveLWBtn'), saveStatus=$('#saveStatus'), lastText=$('#lastText');
+  const hintBox=$('#hintBox'), hintText=$('#hintText'), limitInfo=$('#limitInfo');
 
-    function shiver(el){ el.classList.remove('shiver'); void el.offsetWidth; el.classList.add('shiver'); }
-    function startHB(){ stopHB(); hbTimer=setInterval(()=>fetch('/api/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hb:true})}),10000); }
-    function stopHB(){ if(hbTimer){ clearInterval(hbTimer); hbTimer=null; } }
-    function startSelectTicker(){ stopSelectTicker(); selectTicker=setInterval(()=>{ const remainMs=Math.max(0,selectDeadline-Date.now()); const sec=Math.floor(remainMs/1000); timerEl.textContent=sec; if(sec<=0){ clearInterval(selectTicker); if(!deathShown) showDeath('시간 초과'); } },250); }
-    function stopSelectTicker(){ if(selectTicker){ clearInterval(selectTicker); selectTicker=null; } }
+  let hbTimer=null, pollTimer=null, selectTicker=null;
+  let selectDeadline=0, lwLimit=45, deathShown=false;
 
-    async function syncFromServer(){
-      try{
-        const r=await fetch('/api/queue'); const d=await r.json();
-        if (d.state==='active'){
-          if (typeof d.select_remain_sec==='number'){ const srvDeadline=Date.now()+Math.max(0,d.select_remain_sec|0)*1000; if(!selectDeadline||srvDeadline<selectDeadline){ selectDeadline=srvDeadline; startSelectTicker(); } }
-        } else if (d.state==='dead_pending'){
-          if (!deathShown) { showDeath(d.cause||'사망'); deathShown=true; }
-          if (typeof d.remain_sec==='number') limitInfo.textContent = `${Math.max(0,d.remain_sec|0)}초`;
-          switchBgm('/css/bgm/death-theme.mp3'); document.body.classList.add('vignette-on');
-        } else if (d.state==='finished'){
-          location.replace('/play/wall.html');
-        } else if (d.state==='waiting'){
-          location.replace('/lobby.html');
-        }
-      }catch{}
-    }
+  function shiver(el){ el.classList.remove('shiver'); void el.offsetWidth; el.classList.add('shiver'); }
 
-    async function init(){
-      const r = await fetch('/api/choose?init=1');
-      if(!r.ok){ alert('세션 만료. 로비로 이동'); location.href='/lobby.html'; return; }
+  function startHB(){
+    stopHB();
+    hbTimer=setInterval(()=>fetch('/api/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hb:true})}),10000);
+  }
+  function stopHB(){ if(hbTimer){ clearInterval(hbTimer); hbTimer=null; } }
+
+  function startSelectTicker(){
+    stopSelectTicker();
+    selectTicker = setInterval(()=>{
+      const remainMs = Math.max(0, selectDeadline - Date.now());
+      const sec = Math.floor(remainMs/1000);
+      timerEl.textContent = sec;
+      if (sec<=0) { clearInterval(selectTicker); if (!deathShown) showDeath('시간 초과'); }
+    }, 250);
+  }
+  function stopSelectTicker(){ if(selectTicker){ clearInterval(selectTicker); selectTicker=null; } }
+
+  async function syncFromServer(){
+    try{
+      const r=await fetch('/api/queue');
       const d=await r.json();
+      if (d.state==='active') {
+        if (typeof d.select_remain_sec==='number') {
+          const srvDeadline = Date.now() + Math.max(0,d.select_remain_sec|0)*1000;
+          if (!selectDeadline || srvDeadline < selectDeadline) {
+            selectDeadline = srvDeadline; startSelectTicker();
+          }
+        }
+      } else if (d.state==='dead_pending') {
+        if (!deathShown) { showDeath(d.cause || '사망'); deathShown=true; }
+        if (typeof d.remain_sec === 'number') limitInfo.textContent = `${Math.max(0,d.remain_sec|0)}초`;
+        switchBgm && switchBgm('/css/bgm/death-theme.mp3'); document.body.classList.add('vignette-on');
+      } else if (d.state==='finished') {
+        location.replace('/play/wall.html');
+      } else if (d.state==='waiting') {
+        location.replace('/lobby.html');
+      }
+    }catch{}
+  }
+
+  // === A안: 현재 방 파일 기반으로 스토리/배경/라벨 주입 ===
+  async function loadRoomAndApply(){
+    try{
+      const r = await fetch('/api/choose?init=1', {cache:'no-store'});
+      if(!r.ok) return;
+      const d = await r.json();
+
+      // step/타이머 정보
       stepInfo.textContent = '방 ' + (d.step||0);
-      if (d.lastHint && d.lastHint.text){ hintText.textContent = d.lastHint.text; hintBox.classList.remove('hidden'); }
-      lwLimit = d.lw_limit_sec || 45; limitInfo.textContent = `${lwLimit}초`;
-      startHB(); await syncFromServer(); pollTimer=setInterval(syncFromServer, 3000);
-    }
+      lwLimit = d.lw_limit_sec || lwLimit; limitInfo.textContent = `${lwLimit}초`;
 
-    function disableChoice(v){ [btnL,btnF,btnR].forEach(b=>b.disabled=v); }
-    async function choose(dir){
-      disableChoice(true); shiver(chooseBox);
-      try{
-        const r=await fetch('/api/choose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dir})});
-        const d=await r.json().catch(()=>({}));
-        if(!r.ok){ alert(d.error||'오류'); disableChoice(false); return; }
-        if(d.result==='advance'){
-          stepInfo.textContent='방 '+d.step; chooseBox.classList.add('hidden'); aliveBox.classList.remove('hidden'); stopSelectTicker();
-          switchBgm('/css/bgm/gameplay-theme.mp3');
-        }else if(d.result==='dead'){
-          stopHB(); stopSelectTicker(); showDeath(d.cause||'알 수 없음'); deathShown=true;
-          switchBgm('/css/bgm/death-theme.mp3'); document.body.classList.add('vignette-on');
-        }else{ alert('알 수 없는 응답'); disableChoice(false); }
-      }catch{ alert('네트워크 오류'); disableChoice(false); }
-    }
-    function showDeath(cause){ if(!deathShown && cause) causeEl.textContent=cause; chooseBox.classList.add('hidden'); aliveBox.classList.add('hidden'); deathBox.classList.remove('hidden'); }
-    $('#btnNext').onclick=()=>{ aliveBox.classList.add('hidden'); chooseBox.classList.remove('hidden'); disableChoice(false); };
-    btnL.onclick=()=>choose('L'); btnF.onclick=()=>choose('F'); btnR.onclick=()=>choose('R');
+      // 스토리 + 직전 유언
+      if (d.room && d.room.story){
+        const hint = (d.lastHint && d.lastHint.text) ? `\n\n—[직전 유언] ${d.lastHint.text}` : '';
+        hintText.textContent = d.room.story + hint;
+        hintBox.classList.remove('hidden');
+      } else if (d.lastHint && d.lastHint.text){
+        hintText.textContent = d.lastHint.text;
+        hintBox.classList.remove('hidden');
+      } else {
+        hintBox.classList.add('hidden');
+      }
 
-    async function submitLastWords(){
-      if (saveBtn.disabled) return;
-      saveBtn.disabled=true; saveStatus.textContent='저장중…';
-      try{
-        const r=await fetch('/api/lastwords',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:lastText.value.trim()})});
-        const d=await r.json().catch(()=>({}));
-        if(r.ok && d.ok){ saveStatus.textContent = d.already ? '이미 저장됨' : '저장 완료'; lastText.disabled=true; setTimeout(()=>{ location.href='/play/wall.html'; }, 250); }
-        else { saveStatus.textContent=d.error||'저장 실패'; saveBtn.disabled=false; }
-      }catch{ saveStatus.textContent='네트워크 오류'; saveBtn.disabled=false; }
+      // 배경/삽화
+      if (d.room && d.room.bg) {
+        document.body.style.backgroundImage = `url('${d.room.bg}')`;
+      }
+      const wrap = document.querySelector('.wrap');
+      if (d.room && d.room.image){
+        wrap.style.backgroundImage = `url('${d.room.image}')`;
+        wrap.style.backgroundRepeat = 'no-repeat';
+        wrap.style.backgroundPosition = 'right bottom';
+        wrap.style.backgroundSize = '240px auto';
+      } else {
+        wrap.style.backgroundImage = '';
+      }
+
+      // 버튼 라벨
+      if (d.room && d.room.choices){
+        if (d.room.choices.L) btnL.textContent = d.room.choices.L;
+        if (d.room.choices.F) btnF.textContent = d.room.choices.F;
+        if (d.room.choices.R) btnR.textContent = d.room.choices.R;
+      }
+    }catch{}
+  }
+
+  async function init(){
+    const r = await fetch('/api/choose?init=1');
+    if (!r.ok){ alert('세션 만료. 로비로 이동'); location.href='/lobby.html'; return; }
+    const d = await r.json();
+    stepInfo.textContent = '방 ' + (d.step||0);
+
+    // A안 주입
+    await loadRoomAndApply();
+
+    startHB();
+    await syncFromServer();
+    pollTimer=setInterval(syncFromServer, 3000);
+  }
+
+  function disableChoice(v){ [btnL,btnF,btnR].forEach(b=>b.disabled=v); }
+
+  async function choose(dir){
+    disableChoice(true); shiver(chooseBox);
+    try{
+      const r=await fetch('/api/choose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dir})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok){ alert(d.error||'오류'); disableChoice(false); return; }
+
+      if(d.result==='advance'){
+        stepInfo.textContent='방 '+d.step;
+        chooseBox.classList.add('hidden'); aliveBox.classList.remove('hidden');
+        switchBgm && switchBgm('/css/bgm/gameplay-theme.mp3');
+      }else if(d.result==='dead'){
+        stopHB(); stopSelectTicker();
+        showDeath(d.cause||'알 수 없음'); deathShown = true;
+        switchBgm && switchBgm('/css/bgm/death-theme.mp3'); document.body.classList.add('vignette-on');
+      }else{
+        alert('알 수 없는 응답'); disableChoice(false);
+      }
+
+      // 이벤트 룸 분기(옵션)
+      if (d.result==='advance' && d.event && d.event.type==='hall-of-fame') {
+        location.href='/play/event/hof.html'; return;
+      }
+    }catch{
+      alert('네트워크 오류'); disableChoice(false);
     }
-    document.getElementById('saveLWBtn').onclick=submitLastWords;
-    init();
-  </script>
+  }
+
+  function showDeath(cause){
+    if (!deathShown && cause) causeEl.textContent = cause; // 사망 원인 덮어쓰기 방지
+    chooseBox.classList.add('hidden'); aliveBox.classList.add('hidden'); deathBox.classList.remove('hidden');
+  }
+
+  $('#btnNext').onclick=()=>{ aliveBox.classList.add('hidden'); chooseBox.classList.remove('hidden'); disableChoice(false); loadRoomAndApply(); };
+  btnL.onclick=()=>choose('L'); btnF.onclick=()=>choose('F'); btnR.onclick=()=>choose('R');
+
+  async function submitLastWords(){
+    if (saveBtn.disabled) return;
+    saveBtn.disabled=true; saveStatus.textContent='저장중…';
+    try{
+      const r=await fetch('/api/lastwords',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:lastText.value.trim()})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok && d.ok){
+        saveStatus.textContent = d.already ? '이미 저장됨' : '저장 완료';
+        lastText.disabled=true;
+        setTimeout(()=>{ location.href='/play/wall.html'; }, 250);
+      }else{
+        saveStatus.textContent=d.error||'저장 실패'; saveBtn.disabled=false;
+      }
+    }catch{ saveStatus.textContent='네트워크 오류'; saveBtn.disabled=false; }
+  }
+  document.getElementById('saveLWBtn').onclick=submitLastWords;
+
+  init();
+</script>
 </body>
 </html>
