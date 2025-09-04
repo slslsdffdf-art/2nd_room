@@ -1,118 +1,97 @@
-// 공통 BGM 플레이어 (모바일 오디오 언락 대응)
-// 사용법: 각 페이지에서 이 스크립트보다 "앞"에
-//   window.BGM_SRC = '/css/bgm/gate-theme.mp3'
-// 를 선언해두면 됩니다.
+// 공통 BGM 플레이어 (모바일/PC 모두 안정)
+// 전략: 처음엔 muted+autoplay로 재생 시도 → 사용자 제스처에서 unmute+resume
+// 각 페이지에서 이 파일보다 "앞"에 window.BGM_SRC = '...' 만 선언하면 됨.
 
 (function () {
-  if (window.__bgm && window.__bgm.src === window.BGM_SRC) return; // 중복 방지
+  if (window.__bgm && window.__bgm.src === window.BGM_SRC) return; // 중복 초기화 방지
 
   const SRC = window.BGM_SRC || '';
   const state = (window.__bgm = {
     src: SRC,
     audio: null,
-    ctx: null,
-    gain: null,
     unlocked: false,
     playing: false,
-    volume: 1.0,
+    volume: 0.9,
   });
 
-  // <audio> 준비
+  // <audio> 엘리먼트
   const audio = document.createElement('audio');
   audio.src = SRC;
   audio.loop = true;
   audio.preload = 'auto';
-  audio.setAttribute('playsinline', ''); // iOS 전체화면 방지
+  audio.autoplay = true;        // muted 상태에서 자동 재생 허용
+  audio.muted = true;           // 처음엔 무음으로 재생
+  audio.playsInline = true;     // iOS 전체화면 방지
+  audio.setAttribute('playsinline', '');
   audio.setAttribute('webkit-playsinline', '');
-  audio.crossOrigin = 'anonymous'; // 로컬이면 영향 없음
+  audio.crossOrigin = 'anonymous';
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.appendChild(audio);
+  });
   state.audio = audio;
 
-  // WebAudio 준비(가능한 경우)
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (AC) {
-    try {
-      const ctx = new AC();
-      const srcNode = ctx.createMediaElementSource(audio);
-      const gain = ctx.createGain();
-      gain.gain.value = 0.0001; // 처음엔 거의 무음
-      srcNode.connect(gain).connect(ctx.destination);
-      state.ctx = ctx;
-      state.gain = gain;
-    } catch (e) {
-      // 일부 브라우저는 여러 번 MediaElementSource를 만들면 에러
-      state.ctx = null;
-      state.gain = null;
-    }
-  }
-
-  // 재생 시도 (언락 이후 호출)
-  async function playNow() {
+  // 초기 재생 시도(무음)
+  function tryPlayMuted() {
     if (!SRC) return;
-    try {
-      if (state.ctx && state.ctx.state === 'suspended') {
-        await state.ctx.resume();
-      }
-      const p = audio.play();
-      if (p && typeof p.then === 'function') await p;
-      // 페이드 인
-      if (state.gain) {
-        const g = state.gain.gain;
-        try {
-          const t = state.ctx.currentTime;
-          g.cancelScheduledValues(t);
-          g.setValueAtTime(Math.max(0.0001, g.value), t);
-          g.exponentialRampToValueAtTime(Math.max(0.001, state.volume), t + 0.8);
-        } catch {}
-      } else {
-        // WebAudio가 없으면 볼륨 직접
-        audio.volume = state.volume;
-      }
-      state.playing = true;
-    } catch (err) {
-      // 재생 거부 시 다음 제스처를 기다림
-      state.playing = false;
+    const p = audio.play();
+    if (p && typeof p.then === 'function') {
+      p.then(() => { state.playing = true; }).catch(() => { state.playing = false; });
     }
   }
+  tryPlayMuted();
 
-  // 사용자 제스처로 언락
+  // 사용자 제스처에서 언락
   async function unlock() {
     if (state.unlocked) return;
     state.unlocked = true;
-    document.removeEventListener('pointerdown', unlock, true);
-    document.removeEventListener('touchend', unlock, true);
-    document.removeEventListener('keydown', unlock, true);
-
-    // iOS 하드웨어 무음 스위치 ON이면 HTMLAudio가 묵음일 수 있음 (사용자 안내 필요)
+    ['pointerdown','touchend','keydown'].forEach(t => document.removeEventListener(t, unlock, true));
+    // unmute + 재생
     try {
-      if (state.ctx && state.ctx.state === 'suspended') {
-        await state.ctx.resume();
-      }
-    } catch {}
-    await playNow();
+      audio.muted = false;
+      audio.volume = state.volume;
+      if (audio.paused) await audio.play();
+      state.playing = true;
+    } catch (e) {
+      // 일부 브라우저는 한 번 더 제스처 필요
+      state.playing = false;
+    }
   }
+  ['pointerdown','touchend','keydown'].forEach(t => document.addEventListener(t, unlock, true));
 
-  document.addEventListener('pointerdown', unlock, true);
-  document.addEventListener('touchend', unlock, true);
-  document.addEventListener('keydown', unlock, true);
-
-  // 페이지가 보일 때 재시도 (bfcache/백그라운드 복귀)
+  // 페이지가 다시 보이면 재시도
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && state.unlocked && !state.playing) {
-      playNow();
+      audio.muted = false;
+      audio.volume = state.volume;
+      audio.play().then(() => { state.playing = true; }).catch(() => {});
+    }
+  });
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted && state.unlocked) {
+      audio.muted = false;
+      audio.volume = state.volume;
+      audio.play().catch(()=>{});
     }
   });
 
-  // iOS Safari bfcache 복귀
-  window.addEventListener('pageshow', (e) => {
-    if (e.persisted && state.unlocked) playNow();
-  });
+  // BGM 전환 API
+  window.switchBgm = function (newSrc) {
+    if (!newSrc || newSrc === state.src) return;
+    state.src = newSrc;
+    audio.pause();
+    audio.src = newSrc;
+    // 정책상 다시 무음으로 시작 → 제스처 지나온 페이지면 바로 unmute
+    audio.muted = !state.unlocked;
+    audio.volume = state.unlocked ? state.volume : 0;
+    const p = audio.play();
+    if (p && typeof p.then === 'function') {
+      p.then(() => {
+        if (state.unlocked) { audio.muted = false; audio.volume = state.volume; }
+        state.playing = true;
+      }).catch(()=>{ state.playing = false; });
+    }
+  };
 
-  // 초기에 살짝 지연 후 한 번 시도 (데스크톱/권한 풀린 상태 대비)
-  setTimeout(() => {
-    if (!state.unlocked) return; // 아직 제스처 전이면 대기
-    playNow();
-  }, 200);
-
-  // 노출
-  window.__bgmPlay = playNow;
+  // 초기에 한 번 더 무음 재생 시도(일부 브라우저 타이밍 문제 보완)
+  setTimeout(tryPlayMuted, 200);
 })();
